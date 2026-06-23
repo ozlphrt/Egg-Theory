@@ -3863,16 +3863,31 @@
                     const highlightScale = egg.isHighlighted ? 1.4 : 1.0;
                     egg.mesh.scale.set(size * (1 - squash * 0.5) * pulseScale * highlightScale, size * (1 + squash) * pulseScale * highlightScale, size * (1 - squash * 0.5) * pulseScale * highlightScale);
 
-                    // Pulse emissiveIntensity on highlighted egg so bloom breathes
+                    // Pulse emissiveIntensity on highlighted egg so bloom breathes, bob position up, and scale ground ring
                     if (egg.isHighlighted && egg._emissiveCol) {
                         const uData = egg.mesh.userData;
                         const shells = [uData.topShell, uData.bottomShell];
-                        const pulsedIntensity = 3.5 + Math.sin(time * 3.5) * 1.0; // 2.5 – 4.5 range
+                        const pulsedIntensity = 10.0 + Math.sin(time * 6.0) * 3.0; // Dynamic HDR intensities
                         shells.forEach(shell => {
                             if (shell && shell.material) {
                                 shell.material.emissiveIntensity = pulsedIntensity;
                             }
                         });
+                        
+                        // Bounce/float offset when highlighted
+                        egg.mesh.position.y += 0.45 + Math.sin(time * 5.0) * 0.12;
+
+                        // Pulse ground ring
+                        if (egg.energyRing) {
+                            egg.energyRing.visible = true;
+                            const ringScale = size * (1.35 + Math.sin(time * 8.0) * 0.15);
+                            egg.energyRing.scale.set(ringScale, ringScale, ringScale);
+                        }
+                    } else {
+                        // Restore ground ring visibility to false if it was hidden before highlight
+                        if (egg.energyRing && !egg.isHighlighted && egg.energy < 70) {
+                            egg.energyRing.visible = false;
+                        }
                     }
 
 
@@ -3910,6 +3925,16 @@
                         uData.backTex.needsUpdate = true;
                     }
                 });
+
+                // Dynamically drop bloom threshold if there is any highlighted egg to create a premium radiant glow effect
+                const anyHighlighted = eggs.some(egg => egg.isHighlighted && !egg.isCracked);
+                if (anyHighlighted) {
+                    bloomPass.threshold = 0.15;
+                    bloomPass.strength = 1.8;
+                } else {
+                    bloomPass.threshold = 1.0;
+                    bloomPass.strength = 1.2;
+                }
             }
 
             composer.render();

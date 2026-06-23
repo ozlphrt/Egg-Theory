@@ -3867,15 +3867,15 @@
                     if (egg.isHighlighted && egg._emissiveCol) {
                         const uData = egg.mesh.userData;
                         const shells = [uData.topShell, uData.bottomShell];
-                        const pulsedIntensity = 10.0 + Math.sin(time * 6.0) * 3.0; // Dynamic HDR intensities
+                        const pulsedIntensity = 3.5 + Math.sin(time * 4.0) * 1.0;
                         shells.forEach(shell => {
                             if (shell && shell.material) {
                                 shell.material.emissiveIntensity = pulsedIntensity;
                             }
                         });
                         
-                        // Bounce/float offset when highlighted
-                        egg.mesh.position.y += 0.45 + Math.sin(time * 5.0) * 0.12;
+                        // Bounce/float offset when highlighted (non-accumulative)
+                        egg.mesh.position.y = (egg.moveProgress < 1.0 ? egg.mesh.position.y : get3DPosition(egg.gridX, egg.gridZ, size).y) + 0.45 + Math.sin(time * 5.0) * 0.12;
 
                         // Pulse ground ring
                         if (egg.energyRing) {
@@ -3929,7 +3929,7 @@
                 // Dynamically drop bloom threshold if there is any highlighted egg to create a premium radiant glow effect
                 const anyHighlighted = eggs.some(egg => egg.isHighlighted && !egg.isCracked);
                 if (anyHighlighted) {
-                    bloomPass.threshold = 0.15;
+                    bloomPass.threshold = 0.85; // Keeps white background from blooming
                     bloomPass.strength = 1.8;
                 } else {
                     bloomPass.threshold = 1.0;

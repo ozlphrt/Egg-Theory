@@ -2283,6 +2283,34 @@
                 avgWeights.soft += w.soft;
                 avgWeights.tft += w.tft;
                 avgWeights.random += w.random;
+
+                // Highlight this egg in the 3D scene
+                if (!egg.isCracked) {
+                    egg.isHighlighted = true;
+                    // Determine dominant weight strategy to choose highlight color, or fall back to strategy
+                    let mainStrat = egg.strategy || 'soft';
+                    if (egg.weights) {
+                        const weightsArr = Object.entries(egg.weights);
+                        weightsArr.sort((a, b) => b[1] - a[1]);
+                        mainStrat = weightsArr[0][0];
+                    }
+
+                    const emissiveCol = new THREE.Color();
+                    if (mainStrat === 'hard') emissiveCol.setRGB(1.0, 0.9, 0.0);       // Yellow
+                    else if (mainStrat === 'soft') emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
+                    else if (mainStrat === 'tft') emissiveCol.setRGB(1.0, 0.15, 0.1);   // Red
+                    else emissiveCol.setRGB(0.05, 1.0, 0.05);                          // Green
+
+                    egg._emissiveCol = emissiveCol;
+                    const uData = egg.mesh.userData;
+                    const shells = [uData.topShell, uData.bottomShell];
+                    shells.forEach(shell => {
+                        if (shell && shell.material) {
+                            shell.material.emissive.copy(emissiveCol);
+                            shell.material.emissiveIntensity = 3.5;
+                        }
+                    });
+                }
             });
 
             const total = cluster.eggs.length;
@@ -2362,6 +2390,22 @@
             const tooltip = document.getElementById('ancestry-tooltip');
             tooltip.style.display = 'none';
             tooltip.style.opacity = '0';
+
+            // Reset all highlighted eggs
+            eggs.forEach(egg => {
+                if (egg.isHighlighted) {
+                    egg.isHighlighted = false;
+                    egg._emissiveCol = null;
+                    const uData = egg.mesh.userData;
+                    const shells = [uData.topShell, uData.bottomShell];
+                    shells.forEach(shell => {
+                        if (shell && shell.material) {
+                            shell.material.emissive.setHex(0x000000);
+                            shell.material.emissiveIntensity = 0.0;
+                        }
+                    });
+                }
+            });
         }
 
         // ── FLOATING TEXT BUBBLES ─────────────────────────────────────────

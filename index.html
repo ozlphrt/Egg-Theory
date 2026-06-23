@@ -3929,8 +3929,8 @@
                 // Dynamically drop bloom threshold if there is any highlighted egg to create a premium radiant glow effect
                 const anyHighlighted = eggs.some(egg => egg.isHighlighted && !egg.isCracked);
                 if (anyHighlighted) {
-                    bloomPass.threshold = 0.85; // Keeps white background from blooming
-                    bloomPass.strength = 1.8;
+                    bloomPass.threshold = 0.92; // Prevents background and character skin blowout
+                    bloomPass.strength = 1.35; // Gentle premium halo
                 } else {
                     bloomPass.threshold = 1.0;
                     bloomPass.strength = 1.2;

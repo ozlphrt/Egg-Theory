@@ -3867,9 +3867,11 @@
                     if (egg.isHighlighted && egg._emissiveCol) {
                         const uData = egg.mesh.userData;
                         const shells = [uData.topShell, uData.bottomShell];
-                        const pulsedIntensity = 3.5 + Math.sin(time * 4.0) * 1.0;
+                        const pulsedIntensity = 3.8 + Math.sin(time * 5.0) * 0.8;
                         shells.forEach(shell => {
                             if (shell && shell.material) {
+                                shell.material.color.copy(egg._emissiveCol); // Shell becomes the emissive color
+                                shell.material.emissive.copy(egg._emissiveCol);
                                 shell.material.emissiveIntensity = pulsedIntensity;
                             }
                         });
@@ -3884,8 +3886,22 @@
                             egg.energyRing.scale.set(ringScale, ringScale, ringScale);
                         }
                     } else {
+                        // Restore original shell color and emissive properties when not highlighted
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                if (shell.material.color.getHex() !== egg.colorHex) {
+                                    shell.material.color.setHex(egg.colorHex);
+                                }
+                                if (shell.material.emissive.getHex() !== 0x000000) {
+                                    shell.material.emissive.setHex(0x000000);
+                                    shell.material.emissiveIntensity = 0.0;
+                                }
+                            }
+                        });
                         // Restore ground ring visibility to false if it was hidden before highlight
-                        if (egg.energyRing && !egg.isHighlighted && egg.energy < 70) {
+                        if (egg.energyRing && egg.energy < 70) {
                             egg.energyRing.visible = false;
                         }
                     }

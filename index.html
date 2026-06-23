@@ -479,9 +479,10 @@
         .info-tooltip {
             visibility: hidden;
             opacity: 0;
-            position: absolute;
-            top: calc(100% + 10px);
-            right: 0;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: rgba(15, 23, 42, 0.98);
             backdrop-filter: blur(12px);
             color: #f8fafc;
@@ -490,17 +491,13 @@
             font-size: 1.25rem;
             line-height: 1.6;
             width: 1200px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
-            z-index: 1000;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            z-index: 100000; /* Center-modal on top of all panels */
             transition: opacity 0.2s ease, visibility 0.2s ease;
             pointer-events: none;
             font-weight: 500;
             text-align: left;
             border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .info-container:hover .info-tooltip {
-            visibility: visible;
-            opacity: 1;
         }
         .info-tooltip.show-initially {
             visibility: visible;
@@ -687,6 +684,71 @@
 </head>
 <body>
     <div id="canvas-container"></div>
+    
+    <!-- Info Rules Tooltip (Fixed Overlay Center Modal) -->
+    <div id="rules-tooltip" class="info-tooltip show-initially" style="width: 1200px; box-sizing: border-box;">
+        <strong style="color: #f97316; font-size: 1.85rem; display: block; margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">Simulation Rules</strong>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+            <!-- Column 1: Egg Types & Payoffs -->
+            <div>
+                <div style="margin-bottom: 28px;">
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Egg Types & Strategies:</strong>
+                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
+                        <span style="color: #fdcc0d; font-weight: 700; white-space: nowrap;">🟡 Yellow (Aggressive):</span>
+                        <span style="color: #cbd5e1;">Always attacks to steal energy.</span>
+                        
+                        <span style="color: #2774d8; font-weight: 700; white-space: nowrap;">🔵 Blue (Cooperative):</span>
+                        <span style="color: #cbd5e1;">Always cooperates and shares energy.</span>
+                        
+                        <span style="color: #e33e3e; font-weight: 700; white-space: nowrap;">🔴 Red (Reciprocal):</span>
+                        <span style="color: #cbd5e1;">Mimics the opponent's previous choice.</span>
+                        
+                        <span style="color: #2ec16e; font-weight: 700; white-space: nowrap;">🟢 Green (Random):</span>
+                        <span style="color: #cbd5e1;">Randomly decides whether to attack.</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Game Theory Payoffs:</strong>
+                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">🤝 Soft &amp; Soft (Coop):</span>
+                        <span style="color: #cbd5e1;">Both shapes gain <span style="color: #2ec16e; font-weight: 700;">+15 energy</span>.</span>
+                        
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💥 Soft vs. Hard:</span>
+                        <span style="color: #cbd5e1;"><span style="color: #ef4444; font-weight: 700;">Soft loses -15</span>, <span style="color: #2ec16e; font-weight: 700;">Hard gains +15</span>.</span>
+                        
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💢 Hard &amp; Hard (Clash):</span>
+                        <span style="color: #cbd5e1;">Both shapes lose <span style="color: #ef4444; font-weight: 700;">-10 energy</span>.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Column 2: Breeding & Death -->
+            <div>
+                <div style="margin-bottom: 28px;">
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Breed:</strong>
+                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
+                        <li>Shapes breed sexually when they collide on the board.</li>
+                        <li>Both parents must have at least <strong>70 energy</strong>.</li>
+                        <li>If either parent has <strong>&lt; 70 energy</strong>, they resolve a game theory payoff instead of breeding.</li>
+                        <li>Shapes have a breeding cooldown of at least <strong>5 encounters</strong> between successes.</li>
+                        <li>Successful breeding costs <strong>35 energy</strong> from both parents.</li>
+                        <li>Total active shapes are capped at the grid cell limit (<strong>225</strong>).</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Die:</strong>
+                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
+                        <li>Moving and existing consumes energy constantly.</li>
+                        <li>If energy falls to <strong>0</strong>, the shape dies.</li>
+                        <li>A graveyard cross spawns and slowly decays over time.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Left HUD Column -->
     <div class="left-hud-column">
@@ -725,70 +787,7 @@
             <div class="ancestry-title" style="display: flex; align-items: center; gap: 8px;">
                 Ancestry Tree & Gene Pool
                 <div class="info-container">
-                    <button class="info-trigger">i</button>
-                    <div id="rules-tooltip" class="info-tooltip show-initially" style="width: 1200px; box-sizing: border-box;">
-                        <strong style="color: #f97316; font-size: 1.85rem; display: block; margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">Simulation Rules</strong>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-                            <!-- Column 1: Egg Types & Payoffs -->
-                            <div>
-                                <div style="margin-bottom: 28px;">
-                                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Egg Types & Strategies:</strong>
-                                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
-                                        <span style="color: #fdcc0d; font-weight: 700; white-space: nowrap;">🟡 Yellow (Aggressive):</span>
-                                        <span style="color: #cbd5e1;">Always attacks to steal energy.</span>
-                                        
-                                        <span style="color: #2774d8; font-weight: 700; white-space: nowrap;">🔵 Blue (Cooperative):</span>
-                                        <span style="color: #cbd5e1;">Always cooperates and shares energy.</span>
-                                        
-                                        <span style="color: #e33e3e; font-weight: 700; white-space: nowrap;">🔴 Red (Reciprocal):</span>
-                                        <span style="color: #cbd5e1;">Mimics the opponent's previous choice.</span>
-                                        
-                                        <span style="color: #2ec16e; font-weight: 700; white-space: nowrap;">🟢 Green (Random):</span>
-                                        <span style="color: #cbd5e1;">Randomly decides whether to attack.</span>
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Game Theory Payoffs:</strong>
-                                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
-                                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">🤝 Soft &amp; Soft (Coop):</span>
-                                        <span style="color: #cbd5e1;">Both shapes gain <span style="color: #2ec16e; font-weight: 700;">+15 energy</span>.</span>
-                                        
-                                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💥 Soft vs. Hard:</span>
-                                        <span style="color: #cbd5e1;"><span style="color: #ef4444; font-weight: 700;">Soft loses -15</span>, <span style="color: #2ec16e; font-weight: 700;">Hard gains +15</span>.</span>
-                                        
-                                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💢 Hard &amp; Hard (Clash):</span>
-                                        <span style="color: #cbd5e1;">Both shapes lose <span style="color: #ef4444; font-weight: 700;">-10 energy</span>.</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Column 2: Breeding & Death -->
-                            <div>
-                                <div style="margin-bottom: 28px;">
-                                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Breed:</strong>
-                                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
-                                        <li>Shapes breed sexually when they collide on the board.</li>
-                                        <li>Both parents must have at least <strong>70 energy</strong>.</li>
-                                        <li>If either parent has <strong>&lt; 70 energy</strong>, they resolve a game theory payoff instead of breeding.</li>
-                                        <li>Shapes have a breeding cooldown of at least <strong>5 encounters</strong> between successes.</li>
-                                        <li>Successful breeding costs <strong>35 energy</strong> from both parents.</li>
-                                        <li>Total active shapes are capped at the grid cell limit (<strong>225</strong>).</li>
-                                    </ul>
-                                </div>
-                                
-                                <div>
-                                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Die:</strong>
-                                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
-                                        <li>Moving and existing consumes energy constantly.</li>
-                                        <li>If energy falls to <strong>0</strong>, the shape dies.</li>
-                                        <li>A graveyard cross spawns and slowly decays over time.</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <button class="info-trigger" id="rules-info-trigger">i</button>
                 </div>
             </div>
             <button class="close-ancestry" id="close-ancestry-btn">✕</button>
@@ -4115,18 +4114,31 @@
 
         // Close rules tooltip on first click, touch or hover
         const rulesTooltip = document.getElementById('rules-tooltip');
+        const infoTrigger = document.getElementById('rules-info-trigger');
         if (rulesTooltip) {
             const dismissTooltip = () => {
                 rulesTooltip.classList.remove('show-initially');
+                rulesTooltip.style.visibility = 'hidden';
+                rulesTooltip.style.opacity = '0';
                 document.removeEventListener('mousedown', dismissTooltip);
                 document.removeEventListener('touchstart', dismissTooltip);
-                const trigger = document.querySelector('.info-container');
-                if (trigger) trigger.removeEventListener('mouseenter', dismissTooltip);
+                if (infoTrigger) infoTrigger.removeEventListener('mouseenter', dismissTooltip);
             };
             document.addEventListener('mousedown', dismissTooltip);
             document.addEventListener('touchstart', dismissTooltip);
-            const trigger = document.querySelector('.info-container');
-            if (trigger) trigger.addEventListener('mouseenter', dismissTooltip);
+            if (infoTrigger) {
+                infoTrigger.addEventListener('mouseenter', dismissTooltip);
+                infoTrigger.addEventListener('mouseenter', () => {
+                    rulesTooltip.style.visibility = 'visible';
+                    rulesTooltip.style.opacity = '1';
+                });
+                infoTrigger.addEventListener('mouseleave', () => {
+                    if (!rulesTooltip.classList.contains('show-initially')) {
+                        rulesTooltip.style.visibility = 'hidden';
+                        rulesTooltip.style.opacity = '0';
+                    }
+                });
+            }
         }
 
         animate();

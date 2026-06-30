@@ -695,7 +695,7 @@
                 <div style="margin-bottom: 28px;">
                     <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Egg Types & Strategies:</strong>
                     <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
-                        <span style="color: #fdcc0d; font-weight: 700; white-space: nowrap;">🟡 Yellow (Aggressive):</span>
+                        <span style="color: #ef4444; font-weight: 700; white-space: nowrap;">🔴 Red (Aggressive):</span>
                         <span style="color: #cbd5e1;">Always attacks to steal energy.</span>
                         
                         <span style="color: #2774d8; font-weight: 700; white-space: nowrap;">🔵 Blue (Cooperative):</span>
@@ -794,7 +794,7 @@
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; font-weight: 600; min-width: 210px; flex: 1;">
                 <div class="strategy-row" data-strategy="hard" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: background 0.15s ease; border-radius: 4px; padding: 2px 4px; margin: -2px -4px;">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #fdcc0d; border: 1px solid rgba(255,255,255,0.4);"></span>
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; border: 1px solid rgba(255,255,255,0.4);"></span>
                         <span>Aggr.</span>
                     </div>
                     <span id="legend-count-aggr" style="font-weight: 800; opacity: 1; font-size: 0.95rem;">6</span>
@@ -1739,7 +1739,7 @@
         });
 
         const speciesConfig = {
-            yellow: { color: 0xfdcc0d, strategy: 'hard', label: 'Aggressive (Always Hard)' }, // Clay yellow
+            red: { color: 0xef4444, strategy: 'hard', label: 'Aggressive (Always Hard)' }, // Clay red
             blue: { color: 0x2774d8, strategy: 'soft', label: 'Cooperative (Always Soft)' }
         };
 
@@ -1875,10 +1875,11 @@
                 positions[j] = temp;
             }
 
-            const toSpawn = [
-                'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow',
-                'blue', 'blue', 'blue', 'blue', 'blue', 'blue'
-            ];
+            const toSpawn = [];
+            for (let k = 0; k < 50; k++) {
+                toSpawn.push('red');
+                toSpawn.push('blue');
+            }
             let spawned = 0;
 
             for (let i = 0; i < positions.length && spawned < toSpawn.length; i++) {
@@ -2258,10 +2259,8 @@
                     }
 
                     const emissiveCol = new THREE.Color();
-                    if (mainStrat === 'hard') emissiveCol.setRGB(1.0, 0.9, 0.0);       // Yellow
-                    else if (mainStrat === 'soft') emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
-                    else if (mainStrat === 'tft') emissiveCol.setRGB(1.0, 0.15, 0.1);   // Red
-                    else emissiveCol.setRGB(0.05, 1.0, 0.05);                          // Green
+                    if (mainStrat === 'hard') emissiveCol.setRGB(1.0, 0.15, 0.1);       // Red
+                    else emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
 
                     egg._emissiveCol = emissiveCol;
                     const uData = egg.mesh.userData;
@@ -2292,7 +2291,7 @@
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     ${pctHard > 0.05 ? `
                     <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem;">
-                        <span style="color: #fdcc0d; font-weight: 600;">🟡 Aggressive (Aggr.):</span>
+                        <span style="color: #ef4444; font-weight: 600;">🔴 Aggressive (Aggr.):</span>
                         <span style="color: #ffffff; font-weight: 700;">${pctHard.toFixed(1)}%</span>
                     </div>` : ''}
                     ${pctSoft > 0.05 ? `
@@ -2303,7 +2302,7 @@
                 </div>
 
                 <div style="margin-top: 10px; height: 10px; width: 100%; border-radius: 5px; display: flex; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);">
-                    ${pctHard > 0.05 ? `<div style="width: ${pctHard}%; background: #fdcc0d; height: 100%;"></div>` : ''}
+                    ${pctHard > 0.05 ? `<div style="width: ${pctHard}%; background: #ef4444; height: 100%;"></div>` : ''}
                     ${pctSoft > 0.05 ? `<div style="width: ${pctSoft}%; background: #2774d8; height: 100%;"></div>` : ''}
                 </div>
             `;
@@ -4031,7 +4030,7 @@
                 row.style.background = 'rgba(255, 255, 255, 0.15)';
                 
                 // Select theme border color for the SVG graph node highlights
-                let strokeColor = '#fdcc0d'; // Yellow
+                let strokeColor = '#ef4444'; // Red
                 if (strategy === 'soft') strokeColor = '#2774d8'; // Blue
                 
                 // Dim all SVG links and nodes initially
@@ -4042,7 +4041,7 @@
                 ancestryHistory.forEach(node => {
                     const w = node.weights || {};
                     const strategyVal = w[strategy] || (
-                        (node.species === 'yellow' && strategy === 'hard') ||
+                        (node.species === 'red' && strategy === 'hard') ||
                         (node.species === 'blue' && strategy === 'soft') ? 1.0 : 0.0
                     );
 
@@ -4071,7 +4070,7 @@
                         
                         // Select emissive highlight color respective to the strategy
                         const emissiveCol = new THREE.Color();
-                        if (strategy === 'hard') emissiveCol.setRGB(1.0, 0.9, 0.0);       // Yellow
+                        if (strategy === 'hard') emissiveCol.setRGB(1.0, 0.15, 0.1);       // Red
                         else emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
                         
                         egg._emissiveCol = emissiveCol;

@@ -1,0 +1,4160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Mascot Clay Render</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            user-select: none;
+        }
+        body {
+            background: #e6e6e6; /* Fallback matches WebGL background */
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* PREMIUM GLASSMORPHIC HUD */
+        .hud-panel {
+            position: absolute;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
+            padding: 16px 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .hud-left {
+            top: 24px;
+            left: 24px;
+            width: 300px;
+        }
+
+        .hud-right {
+            top: 24px;
+            right: 24px;
+            width: 320px;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            color: #0f172a;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        h2 {
+            font-size: 0.9rem;
+            color: #334155;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        p {
+            font-size: 0.76rem;
+            color: #64748b;
+        }
+
+        /* SCOREBOARD / POPULATION TRACKER */
+        .scoreboard {
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .score-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .species-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .badge-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* CONTROL BUTTONS */
+        .btn-row {
+            display: flex;
+            gap: 6px;
+        }
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: #d86a27;
+            color: white;
+            box-shadow: 0 4px 12px rgba(216, 106, 39, 0.15);
+        }
+        .btn-primary:hover {
+            background: #be581b;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        /* Full-screen encounter overlay */
+        #encounter-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9990;
+            display: flex;           /* Always in layout — avoids display:none transition bug */
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 48px;
+            visibility: hidden;      /* Hidden via visibility so transitions still work */
+            pointer-events: none;
+        }
+        #encounter-overlay.show {
+            visibility: visible;
+            pointer-events: auto;
+        }
+        .decision-card {
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(24px);
+            border: 2px solid #d86a27;
+            border-radius: 24px;
+            padding: 28px 32px;
+            width: 420px;
+            box-shadow: 0 20px 60px rgba(216, 106, 39, 0.35), 0 0 0 1px rgba(255,255,255,0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            transform: translateY(120px);
+            opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+        }
+        #encounter-overlay.show .decision-card {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .decision-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #0f172a;
+            text-align: center;
+        }
+        .decision-subtitle {
+            font-size: 0.82rem;
+            color: #64748b;
+            text-align: center;
+            margin-top: -8px;
+        }
+        .decision-btn-group {
+            display: flex;
+            width: 100%;
+            gap: 14px;
+        }
+        .btn-decision-soft {
+            flex: 1;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 16px 12px;
+            border-radius: 14px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .btn-decision-soft:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5);
+        }
+        .btn-decision-soft:active {
+            transform: translateY(0);
+        }
+        .btn-decision-hard {
+            flex: 1;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 16px 12px;
+            border-radius: 14px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .btn-decision-hard:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 28px rgba(239, 68, 68, 0.5);
+        }
+        .btn-decision-hard:active {
+            transform: translateY(0);
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            z-index: 10005; /* Puts the panel on top of ancestry graph (z-index 999) and tooltips */
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+            width: 320px;
+            display: none; /* Secret Easter Egg */
+            flex-direction: column;
+            gap: 12px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .control-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding-bottom: 8px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+        }
+        .value-disp {
+            color: #64748b;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+        select, input[type="range"] {
+            width: 100%;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 0.82rem;
+            outline: none;
+        }
+
+        /* MODAL & TOAST */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 480px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .modal-content textarea {
+            width: 100%;
+            height: 160px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            resize: none;
+            background: #f8fafc;
+        }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 200;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* MODE SUB-PANELS */
+        .mode-section {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mode-section.active {
+            display: flex;
+        }
+
+        /* ANCESTRY SIDE PANEL */
+        .ancestry-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #334155;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            display: none; /* Hidden by default since panel starts open */
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .ancestry-toggle:hover {
+            transform: translateY(-2px);
+            background: #ffffff;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+        .ancestry-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px; /* Open by default */
+            bottom: 20px;
+            width: 500px;
+            background: rgba(255, 255, 255, 0.05); /* Restore ultra transparent glassmorphism */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+            z-index: 999;
+            transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Outfit', sans-serif;
+        }
+        .ancestry-panel.open {
+            right: 20px;
+        }
+        .ancestry-resize-handle {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 8px;
+            height: 100%;
+            cursor: ew-resize;
+            background: transparent;
+            z-index: 1001;
+            transition: background 0.2s ease;
+            border-top-left-radius: 24px;
+            border-bottom-left-radius: 24px;
+        }
+        .ancestry-resize-handle:hover, .ancestry-resize-handle.resizing {
+            background: rgba(216, 106, 39, 0.15);
+            border-right: 2px solid #d86a27;
+        }
+        .ancestry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            padding-bottom: 12px;
+            width: 100%;
+        }
+        .ancestry-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-right: auto; /* Pushes the close button to the far right */
+        }
+        .close-ancestry {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 12px;
+            transition: color 0.15s ease;
+        }
+        .close-ancestry:hover {
+            color: #ef4444;
+        }
+        /* INFO TOOLTIP FOR BREEDING RULES */
+        .info-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .info-trigger {
+            background: #d86a27;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: 'Outfit', sans-serif;
+            box-shadow: 0 2px 6px rgba(216, 106, 39, 0.3);
+        }
+        .info-trigger:hover {
+            background: #be581b;
+            transform: scale(1.1);
+        }
+        .info-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: blur(12px);
+            color: #f8fafc;
+            padding: 28px 34px;
+            border-radius: 28px;
+            font-size: 1.25rem;
+            line-height: 1.6;
+            width: 1200px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            z-index: 100000; /* Center-modal on top of all panels */
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+            font-weight: 500;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .info-tooltip.show-initially {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .ancestry-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .svg-container {
+            width: 100%;
+            height: 380px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            overflow: auto;
+            position: relative;
+        }
+        /* CUSTOM GRAPH TOOLTIP */
+        .ancestry-tooltip {
+            background: rgba(15, 23, 42, 0.88); /* Elegant glassmorphic dark slate */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 14px 16px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255,255,255,0.15);
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+            max-width: 290px;
+            display: none;
+            z-index: 10000;
+        }
+        .tooltip-header {
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .tooltip-status {
+            font-size: 0.65rem;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tooltip-status.alive {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+        .tooltip-status.dead {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        /* LEFT HUD COLUMN */
+        .left-hud-column {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        /* COLOR CHART HUD (LEFT TOP UNDER CONTROLS) */
+        .color-chart-hud {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 14px 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        /* SIMULATION CONTROLS HUD */
+        .sim-controls-hud {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 16px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            font-family: 'Outfit', sans-serif;
+            pointer-events: auto;
+        }
+        .hud-btn-main {
+            background: #d86a27;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .hud-btn-main:hover {
+            background: #be581b;
+            transform: translateY(-1px);
+        }
+        .hud-btn-sec {
+            background: #f1f5f9;
+            color: #334155;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .hud-btn-sec:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+        .speed-selector {
+            display: flex;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+            padding: 2px;
+            gap: 2px;
+        }
+        .speed-btn {
+            background: transparent;
+            color: #475569;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .speed-btn:hover {
+            background: rgba(255, 255, 255, 0.5);
+            color: #0f172a;
+        }
+        .speed-btn.active {
+            background: white;
+            color: #0f172a;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <!-- Info Rules Tooltip (Fixed Overlay Center Modal) -->
+    <div id="rules-tooltip" class="info-tooltip show-initially" style="width: 1200px; box-sizing: border-box;">
+        <strong style="color: #f97316; font-size: 1.85rem; display: block; margin-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">Simulation Rules</strong>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+            <!-- Column 1: Egg Types & Payoffs -->
+            <div>
+                <div style="margin-bottom: 28px;">
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Egg Types & Strategies:</strong>
+                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
+                        <span style="color: #fdcc0d; font-weight: 700; white-space: nowrap;">🟡 Yellow (Aggressive):</span>
+                        <span style="color: #cbd5e1;">Always attacks to steal energy.</span>
+                        
+                        <span style="color: #2774d8; font-weight: 700; white-space: nowrap;">🔵 Blue (Cooperative):</span>
+                        <span style="color: #cbd5e1;">Always cooperates and shares energy.</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">Game Theory Payoffs:</strong>
+                    <div style="display: grid; grid-template-columns: 215px 1fr; gap: 12px 18px; font-size: 1.28rem; align-items: baseline;">
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">🤝 Soft &amp; Soft (Coop):</span>
+                        <span style="color: #cbd5e1;">Both shapes gain <span style="color: #2ec16e; font-weight: 700;">+15 energy</span>.</span>
+                        
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💥 Soft vs. Hard:</span>
+                        <span style="color: #cbd5e1;"><span style="color: #ef4444; font-weight: 700;">Soft loses -15</span>, <span style="color: #2ec16e; font-weight: 700;">Hard gains +15</span>.</span>
+                        
+                        <span style="color: #cbd5e1; font-weight: 700; white-space: nowrap;">💢 Hard &amp; Hard (Clash):</span>
+                        <span style="color: #cbd5e1;">Both shapes lose <span style="color: #ef4444; font-weight: 700;">-10 energy</span>.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Column 2: Breeding & Death -->
+            <div>
+                <div style="margin-bottom: 28px;">
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Breed:</strong>
+                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
+                        <li>Shapes breed sexually when they collide on the board.</li>
+                        <li>Both parents must have at least <strong>70 energy</strong>.</li>
+                        <li>If either parent has <strong>&lt; 70 energy</strong>, they resolve a game theory payoff instead of breeding.</li>
+                        <li>Shapes have a breeding cooldown of at least <strong>5 encounters</strong> between successes.</li>
+                        <li>Successful breeding costs <strong>35 energy</strong> from both parents.</li>
+                        <li>Total active shapes are capped at the grid cell limit (<strong>225</strong>).</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <strong style="color: #ffffff; font-size: 1.55rem; display: block; margin-bottom: 14px;">How to Die:</strong>
+                    <ul style="margin: 0; padding-left: 24px; font-size: 1.28rem; display: flex; flex-direction: column; gap: 10px; color: #cbd5e1; list-style-type: disc;">
+                        <li>Moving and existing consumes energy constantly.</li>
+                        <li>If energy falls to <strong>0</strong>, the shape dies.</li>
+                        <li>A graveyard cross spawns and slowly decays over time.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Left HUD Column -->
+    <div class="left-hud-column">
+        <!-- Sim Controls HUD -->
+        <div class="sim-controls-hud">
+            <button id="hud-pause-btn" class="hud-btn-main">⏸️ Pause</button>
+            <div class="speed-selector">
+                <button class="speed-btn active" data-speed="1">1X</button>
+                <button class="speed-btn" data-speed="2">2X</button>
+                <button class="speed-btn" data-speed="5">5X</button>
+            </div>
+            <button id="hud-restart-btn" class="hud-btn-sec">🔄 Restart</button>
+        </div>
+
+        <!-- Distinct Colors Population Bar Chart HUD -->
+        <div class="color-chart-hud">
+            <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #334155; opacity: 0.9;">Distinct Colors (Top 10, Descending)</div>
+            <div id="population-color-chart" style="position: relative; min-height: 40px; transition: height 0.4s ease;">
+                <!-- Dynamically populated rows -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Tooltip Container -->
+    <div id="ancestry-tooltip" class="ancestry-tooltip"></div>
+
+    <!-- Ancestry Toggle Button -->
+    <button class="ancestry-toggle" id="ancestry-toggle-btn">
+        <span>🧬</span> Ancestry Tree
+    </button>
+
+    <!-- Ancestry Side Panel -->
+    <div class="ancestry-panel open" id="ancestry-panel">
+        <div class="ancestry-resize-handle" id="ancestry-resize-handle"></div>
+        <div class="ancestry-header">
+            <div class="ancestry-title" style="display: flex; align-items: center; gap: 8px;">
+                Ancestry Tree & Gene Pool
+                <div class="info-container">
+                    <button class="info-trigger" id="rules-info-trigger">i</button>
+                </div>
+            </div>
+            <button class="close-ancestry" id="close-ancestry-btn">✕</button>
+        </div>
+        <div style="margin-bottom: 16px; background: linear-gradient(135deg, #d86a27, #f97316); padding: 16px 20px; border-radius: 16px; color: white; display: flex; align-items: center; justify-content: space-between; gap: 16px; box-shadow: 0 4px 12px rgba(216, 106, 39, 0.15);">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.9;">Total Population</div>
+                <div style="font-size: 2.6rem; font-weight: 900; line-height: 1;" id="panel-pop-count">12</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; font-weight: 600; min-width: 210px; flex: 1;">
+                <div class="strategy-row" data-strategy="hard" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: background 0.15s ease; border-radius: 4px; padding: 2px 4px; margin: -2px -4px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #fdcc0d; border: 1px solid rgba(255,255,255,0.4);"></span>
+                        <span>Aggr.</span>
+                    </div>
+                    <span id="legend-count-aggr" style="font-weight: 800; opacity: 1; font-size: 0.95rem;">6</span>
+                </div>
+                <div class="strategy-row" data-strategy="soft" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: background 0.15s ease; border-radius: 4px; padding: 2px 4px; margin: -2px -4px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2774d8; border: 1px solid rgba(255,255,255,0.4);"></span>
+                        <span>Coop.</span>
+                    </div>
+                    <span id="legend-count-coop" style="font-weight: 800; opacity: 1; font-size: 0.95rem;">6</span>
+                </div>
+            </div>
+        </div>
+        <div class="ancestry-content">
+            <div class="svg-container" style="height: 100%;">
+                <svg id="ancestry-svg" width="450" height="100%" style="background: transparent;"></svg>
+            </div>
+        </div>
+    </div>
+    
+    <!-- HIDDEN EASTER EGG (Ctrl+Alt+Shift+D to open) -->
+    <div class="control-panel">
+        <div class="control-title">Face Configurator</div>
+        
+        <div class="control-group">
+            <label for="control-target">Select Element</label>
+            <select id="control-target">
+                <option value="eyebrows">Eyebrows Decal</option>
+                <option value="mouth">Mouth Decal</option>
+                <option value="leftEye">Left Eye</option>
+                <option value="rightEye">Right Eye</option>
+                <option value="bothEyes">Both Eyes (Linked)</option>
+                <option value="backDecal">Back Energy Decal</option>
+            </select>
+        </div>
+
+        <div style="border-bottom: 1px solid rgba(0,0,0,0.05); margin: 4px 0;"></div>
+
+        <div class="control-group">
+            <label>Position X <span class="value-disp" id="val-posX">0.00</span></label>
+            <input type="range" id="slide-posX" min="-0.8" max="0.8" step="0.01" value="0">
+        </div>
+        <div class="control-group">
+            <label>Position Y <span class="value-disp" id="val-posY">0.00</span></label>
+            <input type="range" id="slide-posY" min="-0.6" max="0.8" step="0.01" value="0">
+        </div>
+        <div class="control-group">
+            <label>Position Z <span class="value-disp" id="val-posZ">0.00</span></label>
+            <input type="range" id="slide-posZ" min="-1.0" max="1.2" step="0.01" value="0">
+        </div>
+
+        <div style="border-bottom: 1px solid rgba(0,0,0,0.05); margin: 4px 0;"></div>
+
+        <div class="control-group">
+            <label>Rotation X <span class="value-disp" id="val-rotX">0°</span></label>
+            <input type="range" id="slide-rotX" min="-180" max="180" step="1" value="0">
+        </div>
+        <div class="control-group">
+            <label>Rotation Y <span class="value-disp" id="val-rotY">0°</span></label>
+            <input type="range" id="slide-rotY" min="-180" max="180" step="1" value="0">
+        </div>
+        <div class="control-group">
+            <label>Rotation Z <span class="value-disp" id="val-rotZ">0°</span></label>
+            <input type="range" id="slide-rotZ" min="-180" max="180" step="1" value="0">
+        </div>
+        <div class="control-group">
+            <label>Decal Scale <span class="value-disp" id="val-decalScale">1.00</span></label>
+            <input type="range" id="slide-decalScale" min="0.2" max="3.0" step="0.05" value="1.0">
+        </div>
+        <div style="border-bottom: 1px solid rgba(0, 0, 0, 0.05); margin: 4px 0;"></div>
+
+        <div class="control-group">
+            <label>Egg Size <span class="value-disp" id="val-eggSize">0.55</span></label>
+            <input type="range" id="slide-eggSize" min="0.15" max="0.85" step="0.01" value="0.55">
+        </div>
+
+        <div class="control-group">
+            <label>Egg Energy <span class="value-disp" id="val-eggEnergy">None</span></label>
+            <input type="range" id="slide-eggEnergy" min="0" max="100" step="1" value="100">
+        </div>
+
+        <div style="border-bottom: 1px solid rgba(0, 0, 0, 0.05); margin: 4px 0;"></div>
+        <div class="control-title">Lights & Contrast</div>
+
+        <div class="control-group">
+            <label>Exposure <span class="value-disp" id="val-exposure">1.00</span></label>
+            <input type="range" id="slide-exposure" min="0.5" max="2.0" step="0.01" value="1.00">
+        </div>
+        <div class="control-group">
+            <label>Ambient Light <span class="value-disp" id="val-ambient">0.08</span></label>
+            <input type="range" id="slide-ambient" min="0.0" max="0.5" step="0.005" value="0.08">
+        </div>
+        <div class="control-group">
+            <label>Key Light <span class="value-disp" id="val-keyLight">2.20</span></label>
+            <input type="range" id="slide-keyLight" min="0.0" max="3.5" step="0.01" value="2.20">
+        </div>
+        <div class="control-group">
+            <label>Fill Light <span class="value-disp" id="val-fillLight">0.30</span></label>
+            <input type="range" id="slide-fillLight" min="0.0" max="1.5" step="0.005" value="0.30">
+        </div>
+        <div class="control-group">
+            <label>Rim Light <span class="value-disp" id="val-rimLight">0.75</span></label>
+            <input type="range" id="slide-rimLight" min="0.0" max="2.0" step="0.01" value="0.75">
+        </div>
+
+        <div style="border-bottom: 1px solid rgba(0, 0, 0, 0.05); margin: 4px 0;"></div>
+        <div class="control-title">Camera Settings</div>
+
+        <div class="control-group">
+            <label>Field of View (FOV) <span class="value-disp" id="val-cameraFov">30°</span></label>
+            <input type="range" id="slide-cameraFov" min="10" max="90" step="1" value="30">
+        </div>
+        <div class="control-group">
+            <label>Camera X <span class="value-disp" id="val-cameraX">-13.0</span></label>
+            <input type="range" id="slide-cameraX" min="-30.0" max="30.0" step="0.5" value="-13.0">
+        </div>
+        <div class="control-group">
+            <label>Camera Y <span class="value-disp" id="val-cameraY">4.5</span></label>
+            <input type="range" id="slide-cameraY" min="-10.0" max="25.0" step="0.5" value="4.5">
+        </div>
+        <div class="control-group">
+            <label>Camera Z <span class="value-disp" id="val-cameraZ">-13.0</span></label>
+            <input type="range" id="slide-cameraZ" min="-30.0" max="30.0" step="0.5" value="-13.0">
+        </div>
+
+
+        <div class="btn-row">
+            <button class="btn-secondary" id="reset-btn">Reset</button>
+            <button class="btn-secondary" id="pause-btn">Pause</button>
+            <button class="btn-primary" id="save-btn">Save Config</button>
+        </div>
+    </div>
+
+    <!-- Modal for JSON Export -->
+    <div class="modal-overlay" id="export-modal">
+        <div class="modal-content">
+            <div class="control-title" style="margin: 0;">Configuration Saved!</div>
+            <p style="margin: 0;">The configuration has been saved to local storage. You can copy the JSON configuration below:</p>
+            <textarea id="json-output" readonly></textarea>
+            <div class="btn-row">
+                <button class="btn-primary" id="copy-btn">Copy to Clipboard</button>
+                <button class="btn-secondary" id="close-modal-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Copied to clipboard!</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // ── SCENE SETUP ───────────────────────────────────────────────────
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xe6e6e6); // Soft studio grey backdrop
+
+        // Camera setup for centered toy portrait
+        const camera = new THREE.PerspectiveCamera(30, container.clientWidth / container.clientHeight, 0.1, 1000);
+        // Positioned slightly further out (-24, 18, -24) to capture the full grid
+        camera.position.set(-24.0, 18.0, -24.0); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.88;
+        renderer.localClippingEnabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        // Since container is 100vw, we offset target to center grid on the left 2/3rds (offset target to 3.5, -1.175, -3.5)
+        controls.target.set(3.5, -1.175, -3.5); 
+        controls.minDistance = 10;
+        controls.maxDistance = 60; // Max distance scaled to prevent clipping out too far
+        controls.autoRotate = true; // Smooth auto spin
+        controls.autoRotateSpeed = 0.6; // Speed of the rotation (rpm-ish)
+
+        // ── POST-PROCESSING (Bloom Glow Setup with Half-Float Render Target) ──
+        const renderTarget = new THREE.WebGLRenderTarget(
+            container.clientWidth, 
+            container.clientHeight,
+            {
+                type: THREE.HalfFloatType,
+                format: THREE.RGBAFormat
+            }
+        );
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(container.clientWidth, container.clientHeight),
+            1.2,  // bloom strength — soft, tight glow on emissive highlights
+            0.4,  // bloom radius
+            1.0   // bloom threshold — only HDR pixels (luminance > 1.0) bloom; background stays clean
+        );
+        const composer = new EffectComposer(renderer, renderTarget);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // ── LIGHTING (Clean Studio Setup - Original Restored) ─────────────────
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
+        scene.add(ambientLight);
+
+        // Soft Warm Key Light (Top-Right-Front)
+        const keyLight = new THREE.DirectionalLight(0xfff8ee, 0.85);
+        keyLight.position.set(8, 12, 10);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.camera.near = 0.5;
+        keyLight.shadow.camera.far = 25;
+        const d = 7.5; 
+        keyLight.shadow.camera.left = -d;
+        keyLight.shadow.camera.right = d;
+        keyLight.shadow.camera.top = d;
+        keyLight.shadow.camera.bottom = -d;
+        keyLight.shadow.bias = -0.0003;
+        keyLight.shadow.radius = 8; // Soft shadows
+        scene.add(keyLight);
+
+        // Soft Rim Light (Back-Left)
+        const rimLight = new THREE.DirectionalLight(0xe8f4ff, 0.45);
+        rimLight.position.set(-6, 6, -8);
+        scene.add(rimLight);
+
+        // Soft Front-Left Fill Light
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.20);
+        fillLight.position.set(-4, 3, 6);
+        scene.add(fillLight);
+
+        // ── DYNAMIC PROCEDURAL CLAY TEXTURE GENERATION ────────────────────
+        // Generates a subtle procedural noise canvas texture to mimic clay fingerprints/imperfections
+        const canvasNoise = document.createElement('canvas');
+        canvasNoise.width = 128;
+        canvasNoise.height = 128;
+        const ctxNoise = canvasNoise.getContext('2d');
+        for (let x = 0; x < 128; x++) {
+            for (let y = 0; y < 128; y++) {
+                const val = Math.floor(Math.random() * 30);
+                ctxNoise.fillStyle = `rgb(${val},${val},${val})`;
+                ctxNoise.fillRect(x, y, 1, 1);
+            }
+        }
+        const clayNoiseTex = new THREE.CanvasTexture(canvasNoise);
+        clayNoiseTex.wrapS = THREE.RepeatWrapping;
+        clayNoiseTex.wrapT = THREE.RepeatWrapping;
+        clayNoiseTex.repeat.set(12, 12);
+
+
+        // ── GEOMETRY & MATERIALS ──────────────────────────────────────────
+        // Studio Floor sitting below the checkerboard
+        const floorGeo = new THREE.PlaneGeometry(40, 40);
+        const floorMat = new THREE.MeshStandardMaterial({
+            color: 0xdcdcdc,
+            roughness: 0.95,
+            metalness: 0.0
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -1.25;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Polished Clay / Soft Rubber Materials
+        const claySkinMat = new THREE.MeshStandardMaterial({
+            color: 0xd86a27,      // Clay orange (overridden per-egg)
+            roughness: 0.28,      // Semi-glossy polished clay sheen
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.0028     // Subtle surface texture bump
+        });
+
+        const clayWhiteMat = new THREE.MeshStandardMaterial({
+            color: 0xf3f3f3,      // Soft clay white
+            roughness: 0.32,
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.0015
+        });
+
+        const clayChocolateMat = new THREE.MeshStandardMaterial({
+            color: 0x442c1e,      // Soft dark brown clay
+            roughness: 0.35,
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.0015
+        });
+
+        const burgundyMat = new THREE.MeshStandardMaterial({
+            color: 0x7a1c2a,      // Premium burgundy/wine clay
+            roughness: 0.38,
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.0015
+        });
+
+        // ── 3D FLOATING ENCOUNTER SYMBOLS ──────────────────────────────────
+        function createHeartGeometry() {
+            const shape = new THREE.Shape();
+            // Start at bottom notch of heart
+            shape.moveTo(0, -0.4);
+            shape.bezierCurveTo(0.25, -0.15, 0.5, 0.1, 0.5, 0.35);
+            shape.bezierCurveTo(0.5, 0.6, 0.25, 0.75, 0, 0.5);
+            shape.bezierCurveTo(-0.25, 0.75, -0.5, 0.6, -0.5, 0.35);
+            shape.bezierCurveTo(-0.5, 0.1, -0.25, -0.15, 0, -0.4);
+            const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.03, bevelThickness: 0.03 };
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geo.center();
+            return geo;
+        }
+
+        function createCrossGeometry() {
+            const shape = new THREE.Shape();
+            const w = 0.12;
+            const h = 0.38;
+            shape.moveTo(-w, h);
+            shape.lineTo(w, h);
+            shape.lineTo(w, w);
+            shape.lineTo(h, w);
+            shape.lineTo(h, -w);
+            shape.lineTo(w, -w);
+            shape.lineTo(w, -h);
+            shape.lineTo(-w, -h);
+            shape.lineTo(-w, -w);
+            shape.lineTo(-h, -w);
+            shape.lineTo(-h, w);
+            shape.lineTo(-w, w);
+            const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geo.center();
+            return geo;
+        }
+
+        function createLightningGeometry() {
+            const shape = new THREE.Shape();
+            shape.moveTo(0.05, 0.45);
+            shape.lineTo(0.25, 0.05);
+            shape.lineTo(0.05, 0.05);
+            shape.lineTo(0.12, -0.45);
+            shape.lineTo(-0.25, -0.05);
+            shape.lineTo(-0.05, -0.05);
+            shape.closePath();
+            const extrudeSettings = { depth: 0.08, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 };
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geo.center();
+            return geo;
+        }
+
+        const heartGeo = createHeartGeometry();
+        const crossGeo = createCrossGeometry();
+        const lightningGeo = createLightningGeometry();
+
+        const symbolRedMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+        const symbolYellowMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.2, emissive: 0xffa200, emissiveIntensity: 1.5 });
+        const symbolPinkMat = new THREE.MeshStandardMaterial({ color: 0xff6b8b, roughness: 0.4 });
+
+        function spawnFloatingSymbol(position, type) {
+            let geo, mat;
+            if (type === 'heart') {
+                geo = heartGeo;
+                mat = symbolPinkMat;
+            } else if (type === 'medkit') {
+                geo = crossGeo;
+                mat = symbolRedMat;
+            } else if (type === 'energy') {
+                geo = lightningGeo;
+                mat = symbolYellowMat;
+            } else if (type === 'plus') {
+                geo = crossGeo;
+                mat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, emissive: 0x10b981, emissiveIntensity: 1.5 });
+            } else if (type === 'minus') {
+                geo = new THREE.BoxGeometry(0.32, 0.08, 0.08);
+                mat = symbolRedMat;
+            }
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.scale.set(0.65, 0.65, 0.65);
+            mesh.position.copy(position);
+            mesh.position.y += 0.85; // float above egg head
+            scene.add(mesh);
+
+            activeFloatingSymbols.push({
+                mesh: mesh,
+                age: 0,
+                resolved: false
+            });
+        }
+
+        // ── DUAL-SPHERE TANGENT PROFILE FOR BODY ─────────────────────────
+        const pts = [];
+        const r1 = 0.8;
+        const y1 = -0.3;
+        const r2 = 0.55;
+        const y2 = 0.45;
+        const alpha = Math.asin((r1 - r2) / (y2 - y1));
+        
+        // Bottom circle cap
+        const stepsBottom = 64;
+        for (let i = 0; i <= stepsBottom; i++) {
+            const theta = -Math.PI/2 + (alpha - (-Math.PI/2)) * (i / stepsBottom);
+            const r = r1 * Math.cos(theta);
+            const y = y1 + r1 * Math.sin(theta);
+            pts.push(new THREE.Vector2(r, y));
+        }
+        
+        // Top circle cap
+        const stepsTop = 64;
+        for (let i = 0; i <= stepsTop; i++) {
+            const theta = alpha + (Math.PI/2 - alpha) * (i / stepsTop);
+            const r = r2 * Math.cos(theta);
+            const y = y2 + r2 * Math.sin(theta);
+            pts.push(new THREE.Vector2(r, y));
+        }
+
+        // Helper to get radius at a specific Y by interpolating the curve points
+        function getBodyRadiusAtY(yTarget) {
+            for (let i = 0; i < pts.length - 1; i++) {
+                const p1 = pts[i];
+                const p2 = pts[i+1];
+                if ((p1.y <= yTarget && p2.y >= yTarget) || (p1.y >= yTarget && p2.y <= yTarget)) {
+                    const factor = (yTarget - p1.y) / (p2.y - p1.y);
+                    return p1.x + factor * (p2.x - p1.x);
+                }
+            }
+            return 0;
+        }
+
+        // Generate split points for Top and Bottom shells around y = 0.1
+        const splitY = 0.1;
+        const rAtSplit = getBodyRadiusAtY(splitY);
+        const splitPt = new THREE.Vector2(rAtSplit, splitY);
+
+        const ptsBottom = [];
+        const ptsTop = [];
+        pts.forEach(p => {
+            if (p.y < splitY) {
+                ptsBottom.push(p);
+            } else if (p.y > splitY) {
+                ptsTop.push(p);
+            }
+        });
+        ptsBottom.push(splitPt);
+        ptsTop.unshift(splitPt);
+
+        const bottomShellGeo = new THREE.LatheGeometry(ptsBottom, 64);
+        const topShellGeo = new THREE.LatheGeometry(ptsTop, 64);
+
+        // ── 3D FRIED EGG GEOMETRY GENERATOR ─────────────────────────────────
+        function createFriedEggMesh() {
+            const friedEgg = new THREE.Group();
+
+            // Egg White: Organic flat shape
+            const whiteShape = new THREE.Shape();
+            const numPoints = 12;
+            const radius = 0.28;
+            for (let i = 0; i < numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const offset = (Math.sin(angle * 3) * 0.04) + (Math.cos(angle * 5) * 0.02);
+                const r = radius + offset;
+                const x = Math.cos(angle) * r;
+                const y = Math.sin(angle) * r;
+                if (i === 0) {
+                    whiteShape.moveTo(x, y);
+                } else {
+                    whiteShape.lineTo(x, y);
+                }
+            }
+            whiteShape.closePath();
+
+            const extrudeSettings = {
+                depth: 0.012,
+                bevelEnabled: true,
+                bevelSegments: 3,
+                steps: 1,
+                bevelSize: 0.006,
+                bevelThickness: 0.006
+            };
+            const whiteGeo = new THREE.ExtrudeGeometry(whiteShape, extrudeSettings);
+            const whiteMat = new THREE.MeshStandardMaterial({
+                color: 0xfbfbfb,
+                roughness: 0.22,
+                metalness: 0.0,
+                bumpMap: clayNoiseTex,
+                bumpScale: 0.001
+            });
+            const whiteMesh = new THREE.Mesh(whiteGeo, whiteMat);
+            whiteMesh.rotation.x = -Math.PI / 2;
+            whiteMesh.castShadow = true;
+            whiteMesh.receiveShadow = true;
+            friedEgg.add(whiteMesh);
+
+            // Yolk: Yellow glossy dome
+            const yolkGeo = new THREE.SphereGeometry(0.09, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const yolkMat = new THREE.MeshStandardMaterial({
+                color: 0xffa200,
+                roughness: 0.12,
+                metalness: 0.0,
+                bumpMap: clayNoiseTex,
+                bumpScale: 0.0005
+            });
+            const yolkMesh = new THREE.Mesh(yolkGeo, yolkMat);
+            yolkMesh.position.set(0.02, 0.01, 0.01);
+            yolkMesh.scale.set(1.1, 0.65, 1.1);
+            yolkMesh.castShadow = true;
+            friedEgg.add(yolkMesh);
+
+            return friedEgg;
+        }
+
+
+
+        // ── DUAL-DECAL TEXTURES (Separated for eyebrows and mouth) ──────────
+        // Eyebrows Canvas
+        const eyebrowsCanvas = document.createElement('canvas');
+        eyebrowsCanvas.width = 512;
+        eyebrowsCanvas.height = 256;
+        const ebCtx = eyebrowsCanvas.getContext('2d');
+        ebCtx.clearRect(0, 0, 512, 256);
+        ebCtx.strokeStyle = '#3a2010';
+        ebCtx.lineCap = 'round';
+        ebCtx.lineJoin = 'round';
+        ebCtx.lineWidth = 26;
+
+        // Left eyebrow
+        ebCtx.beginPath();
+        ebCtx.moveTo(100, 150);
+        ebCtx.quadraticCurveTo(155, 115, 210, 138);
+        ebCtx.stroke();
+
+        // Right eyebrow
+        ebCtx.beginPath();
+        ebCtx.moveTo(302, 138);
+        ebCtx.quadraticCurveTo(357, 115, 412, 150);
+        ebCtx.stroke();
+
+        const eyebrowsTexture = new THREE.CanvasTexture(eyebrowsCanvas);
+
+        // Mouth Canvas
+        const mouthCanvas = document.createElement('canvas');
+        mouthCanvas.width = 512;
+        mouthCanvas.height = 256;
+        const mCtx = mouthCanvas.getContext('2d');
+        mCtx.clearRect(0, 0, 512, 256);
+        mCtx.strokeStyle = '#3a2010';
+        mCtx.lineCap = 'round';
+        mCtx.lineJoin = 'round';
+        mCtx.lineWidth = 32;
+
+        // Smile
+        mCtx.beginPath();
+        mCtx.moveTo(130, 90);
+        mCtx.quadraticCurveTo(256, 170, 382, 90);
+        mCtx.stroke();
+
+        const mouthTexture = new THREE.CanvasTexture(mouthCanvas);
+
+        // ── INITIAL PARAMETER CALCULATIONS ────────────────────────────────
+        const initialZ_eyes = getBodyRadiusAtY(0.25) + 0.14 * 0.5;
+        let maxFaceR = 0;
+        pts.forEach(p => {
+            if (p.y >= -0.25 && p.y <= 0.65) maxFaceR = Math.max(maxFaceR, p.x);
+        });
+        const initialZ_decals = maxFaceR + 0.012;
+
+        // Config state containing position & rotation
+        const defaultConfig = {
+            leftEye: { posX: -0.14, posY: 0.24, posZ: 0.62, rotX: -16, rotY: 0, rotZ: 0, scale: 1.0 },
+            rightEye: { posX: 0.14, posY: 0.24, posZ: 0.62, rotX: -16, rotY: 0, rotZ: 0, scale: 1.0 },
+            eyebrows: { posX: 0, posY: 0.46, posZ: 0.59, rotX: -15, rotY: -1, rotZ: 0, scale: 1.0 },
+            mouth: { posX: 0, posY: -0.2, posZ: 0.8, rotX: -7, rotY: 0, rotZ: 0, scale: 1.0 },
+            backDecal: { posX: 0.05, posY: -0.21, posZ: -0.81, rotX: 5, rotY: 180, rotZ: 1, scale: 3.0 },
+            eggSize: 0.51
+        };
+
+        const savedConfig = JSON.parse(localStorage.getItem('clayMascotFaceConfig')) || {};
+        let faceConfig = {
+            ...defaultConfig,
+            ...savedConfig,
+            leftEye: { ...defaultConfig.leftEye, ...savedConfig.leftEye },
+            rightEye: { ...defaultConfig.rightEye, ...savedConfig.rightEye },
+            eyebrows: { ...defaultConfig.eyebrows, ...savedConfig.eyebrows },
+            mouth: { ...defaultConfig.mouth, ...savedConfig.mouth },
+            backDecal: { ...defaultConfig.backDecal, ...savedConfig.backDecal },
+            eggSize: savedConfig.eggSize !== undefined ? savedConfig.eggSize : defaultConfig.eggSize
+        };
+
+        function drawExpression(ebCtx, mCtx, state) {
+            ebCtx.clearRect(0, 0, 512, 256);
+            mCtx.clearRect(0, 0, 512, 256);
+
+            ebCtx.strokeStyle = '#3a2010';
+            ebCtx.lineCap = 'round';
+            ebCtx.lineJoin = 'round';
+            ebCtx.lineWidth = 26;
+
+            mCtx.strokeStyle = '#3a2010';
+            mCtx.lineCap = 'round';
+            mCtx.lineJoin = 'round';
+            mCtx.lineWidth = 32;
+
+            if (state === 'happy') {
+                // Happy eyebrows: high arcs
+                ebCtx.beginPath();
+                ebCtx.moveTo(100, 120);
+                ebCtx.quadraticCurveTo(155, 75, 210, 110);
+                ebCtx.stroke();
+
+                ebCtx.beginPath();
+                ebCtx.moveTo(302, 110);
+                ebCtx.quadraticCurveTo(357, 75, 412, 120);
+                ebCtx.stroke();
+
+                // Happy mouth: big smile
+                mCtx.beginPath();
+                mCtx.moveTo(130, 80);
+                mCtx.quadraticCurveTo(256, 190, 382, 80);
+                mCtx.stroke();
+            } else if (state === 'sad' || state === 'unhappy') {
+                // Sad eyebrows: slanted upwards towards center
+                ebCtx.beginPath();
+                ebCtx.moveTo(100, 100);
+                ebCtx.quadraticCurveTo(155, 120, 210, 150);
+                ebCtx.stroke();
+
+                ebCtx.beginPath();
+                ebCtx.moveTo(302, 150);
+                ebCtx.quadraticCurveTo(357, 120, 412, 100);
+                ebCtx.stroke();
+
+                // Sad mouth: frown
+                mCtx.beginPath();
+                mCtx.moveTo(150, 150);
+                mCtx.quadraticCurveTo(256, 80, 362, 150);
+                mCtx.stroke();
+            } else {
+                // Neutral (original expression)
+                // Left eyebrow
+                ebCtx.beginPath();
+                ebCtx.moveTo(100, 150);
+                ebCtx.quadraticCurveTo(155, 115, 210, 138);
+                ebCtx.stroke();
+
+                // Right eyebrow
+                ebCtx.beginPath();
+                ebCtx.moveTo(302, 138);
+                ebCtx.quadraticCurveTo(357, 115, 412, 150);
+                ebCtx.stroke();
+
+                // Smile
+                mCtx.beginPath();
+                mCtx.moveTo(130, 90);
+                mCtx.quadraticCurveTo(256, 170, 382, 90);
+                mCtx.stroke();
+            }
+        }
+
+        function setEggExpression(egg, state) {
+            const uData = egg.mesh.userData;
+            drawExpression(uData.ebCtx, uData.mCtx, state);
+            uData.eyebrowsTex.needsUpdate = true;
+            uData.mouthTex.needsUpdate = true;
+
+            // Reset back to neutral after 3 seconds
+            setTimeout(() => {
+                if (!egg.isCracked) {
+                    drawExpression(uData.ebCtx, uData.mCtx, 'neutral');
+                    uData.eyebrowsTex.needsUpdate = true;
+                    uData.mouthTex.needsUpdate = true;
+                }
+            }, 3000);
+        }
+
+        function createBentPlaneGeometry(width, height, radius, bendDir = -1, segmentsX = 24, segmentsY = 1) {
+            const geo = new THREE.PlaneGeometry(width, height, segmentsX, segmentsY);
+            const pos = geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                
+                // Wrap the plane around a cylinder of the specified radius
+                const theta = x / radius;
+                const newX = radius * Math.sin(theta);
+                const newZ = bendDir * radius * (1.0 - Math.cos(theta));
+                
+                pos.setXYZ(i, newX, y, newZ);
+            }
+            geo.computeVertexNormals();
+            return geo;
+        }
+
+        // ── MASCOT GENERATOR FUNCTION ────────────────────────────────────
+        function createMascot(colorHex = 0xd86a27) {
+            const group = new THREE.Group();
+
+            // Custom colored skin material
+            const skinMat = claySkinMat.clone();
+            skinMat.color.setHex(colorHex);
+
+            // 1. Separate Egg Shell Meshes
+            const topMesh = new THREE.Mesh(topShellGeo, skinMat);
+            topMesh.castShadow = true;
+            topMesh.receiveShadow = true;
+            group.add(topMesh);
+
+            const bottomMesh = new THREE.Mesh(bottomShellGeo, skinMat);
+            bottomMesh.castShadow = true;
+            bottomMesh.receiveShadow = true;
+            group.add(bottomMesh);
+
+            // 2. Eyes
+            const eyeRadius = 0.14;
+            const eyeGeo = new THREE.SphereGeometry(eyeRadius, 32, 32);
+            const pupilGeo = new THREE.SphereGeometry(0.045, 32, 32);
+
+            // Head features group to hold face elements so they turn together as a "head"
+            const headFeatures = new THREE.Group();
+            group.add(headFeatures);
+
+            // Left Eye
+            const leftEyeGroup = new THREE.Group();
+            const leftEyeball = new THREE.Mesh(eyeGeo, clayWhiteMat);
+            leftEyeball.scale.set(1, 1, 0.45);
+            leftEyeball.castShadow = false;
+            const leftPupil = new THREE.Mesh(pupilGeo, clayChocolateMat);
+            leftPupil.scale.set(1, 1, 0.45);
+            leftPupil.position.set(0, 0, eyeRadius * 0.4);
+            leftPupil.castShadow = false;
+            leftEyeGroup.add(leftEyeball, leftPupil);
+            headFeatures.add(leftEyeGroup);
+
+            // Right Eye
+            const rightEyeGroup = new THREE.Group();
+            const rightEyeball = new THREE.Mesh(eyeGeo, clayWhiteMat);
+            rightEyeball.scale.set(1, 1, 0.45);
+            rightEyeball.castShadow = false;
+            const rightPupil = new THREE.Mesh(pupilGeo, clayChocolateMat);
+            rightPupil.scale.set(1, 1, 0.45);
+            rightPupil.position.set(0, 0, eyeRadius * 0.4);
+            rightPupil.castShadow = false;
+            rightEyeGroup.add(rightEyeball, rightPupil);
+            headFeatures.add(rightEyeGroup);
+
+            // Local face textures
+            const ebCanvas = document.createElement('canvas');
+            ebCanvas.width = 512;
+            ebCanvas.height = 256;
+            const ebCtx = ebCanvas.getContext('2d');
+            const ebTex = new THREE.CanvasTexture(ebCanvas);
+
+            const mCanvas = document.createElement('canvas');
+            mCanvas.width = 512;
+            mCanvas.height = 256;
+            const mCtx = mCanvas.getContext('2d');
+            const mTex = new THREE.CanvasTexture(mCanvas);
+
+            drawExpression(ebCtx, mCtx, 'neutral');
+            ebTex.needsUpdate = true;
+            mTex.needsUpdate = true;
+
+            // 3. Eyebrows Decal Plane
+            const ebScale = faceConfig.eyebrows.scale || 1.0;
+            const eyebrowsGeo = createBentPlaneGeometry(0.6, 0.3, 0.45 / ebScale, -1);
+            const eyebrowsMat = new THREE.MeshBasicMaterial({
+                map: ebTex,
+                transparent: true,
+                alphaTest: 0.05,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            });
+            const eyebrowsDecal = new THREE.Mesh(eyebrowsGeo, eyebrowsMat);
+            headFeatures.add(eyebrowsDecal);
+
+            // 4. Mouth Decal Plane
+            const mScale = faceConfig.mouth.scale || 1.0;
+            const mouthGeo = createBentPlaneGeometry(0.5, 0.25, 0.53 / mScale, -1);
+            const mouthMat = new THREE.MeshBasicMaterial({
+                map: mTex,
+                transparent: true,
+                alphaTest: 0.05,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            });
+            const mouthDecal = new THREE.Mesh(mouthGeo, mouthMat);
+            headFeatures.add(mouthDecal);
+
+            // 6. Back decal for displaying the literal energy level number
+            const backCanvas = document.createElement('canvas');
+            backCanvas.width = 128;
+            backCanvas.height = 128;
+            const backCtx = backCanvas.getContext('2d');
+            const backTex = new THREE.CanvasTexture(backCanvas);
+
+            const bdScale = faceConfig.backDecal.scale || 1.0;
+            const backDecalGeo = createBentPlaneGeometry(0.35, 0.35, 0.53 / bdScale, 1);
+            const backDecalMat = new THREE.MeshBasicMaterial({
+                map: backTex,
+                transparent: true,
+                alphaTest: 0.05,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            });
+            const backDecal = new THREE.Mesh(backDecalGeo, backDecalMat);
+            // Position on the back center of the upper shell
+            backDecal.position.set(faceConfig.backDecal.posX, faceConfig.backDecal.posY, faceConfig.backDecal.posZ);
+            backDecal.rotation.set(faceConfig.backDecal.rotX * Math.PI / 180, faceConfig.backDecal.rotY * Math.PI / 180, faceConfig.backDecal.rotZ * Math.PI / 180);
+            headFeatures.add(backDecal);
+
+            // Save reference to objects to update them dynamically
+            group.userData = {
+                topShell: topMesh,
+                bottomShell: bottomMesh,
+                leftEye: leftEyeGroup,
+                rightEye: rightEyeGroup,
+                eyebrows: eyebrowsDecal,
+                mouth: mouthDecal,
+                headFeatures: headFeatures,
+                ebCtx: ebCtx,
+                mCtx: mCtx,
+                eyebrowsTex: ebTex,
+                mouthTex: mTex,
+                backCtx: backCtx,
+                backTex: backTex,
+                backDecal: backDecal
+            };
+
+            return group;
+        }
+
+        // ── ARENA BASEPLATE (9x9 GRID OF CLAY TILES WITH GRIDLINES) ───────
+        const gridGroup = new THREE.Group();
+        const tileSize = 1.46; // Increased tile size to make cells closer
+        const tileHeight = 0.15;
+        const tileMargin = 0.04; // Reduced margin/gap between tiles (Sum remains exactly 1.5)
+        const totalSize = 15;
+        
+        const tileGeo = new THREE.BoxGeometry(tileSize, tileHeight, tileSize);
+        
+        // High-contrast alternating clay tile colors (pure white and deep black checkers)
+        const tileMatA = new THREE.MeshStandardMaterial({
+            color: 0xffffff, // Pure white clay tile
+            roughness: 0.85,
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.001
+        });
+        const tileMatB = new THREE.MeshStandardMaterial({
+            color: 0x282828, // Deeper dark grey clay tile
+            roughness: 0.85,
+            metalness: 0.0,
+            bumpMap: clayNoiseTex,
+            bumpScale: 0.001
+        });
+
+        // Pure black backing plate to form crisp black grid gaps between tiles
+        const backingMat = new THREE.MeshStandardMaterial({
+            color: 0x050505,
+            roughness: 0.95,
+            metalness: 0.0
+        });
+        const backingGeo = new THREE.BoxGeometry(22.5, 0.1, 22.5); // Fits the larger grid (15 * 1.5 = 22.5)
+        const backing = new THREE.Mesh(backingGeo, backingMat);
+        backing.position.set(0, -1.21, 0);
+        backing.receiveShadow = true;
+        scene.add(backing);
+
+        for (let r = 0; r < totalSize; r++) {
+            for (let c = 0; c < totalSize; c++) {
+                const mat = (r + c) % 2 === 0 ? tileMatA : tileMatB;
+                const tile = new THREE.Mesh(tileGeo, mat);
+                // Centered around coordinate (0,0) with 15x15 layout (offset of 7)
+                const posX = (c - 7) * (tileSize + tileMargin);
+                const posZ = (r - 7) * (tileSize + tileMargin);
+                tile.position.set(posX, -1.175, posZ);
+                tile.receiveShadow = true;
+                gridGroup.add(tile);
+            }
+        }
+        scene.add(gridGroup);
+
+        // Disabled the GridHelper overlay as the high-contrast checkerboard provides crisp visual boundaries on its own
+        const gridHelper = new THREE.GridHelper(22.5, 15, 0x000000, 0x000000);
+        gridHelper.position.set(0, -1.098, 0);
+        gridHelper.material.opacity = 0.0;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // Adjust Camera position for standard overview of 15x15 grid
+        camera.position.set(-24.0, 18.0, -24.0);
+        controls.target.set(3.5, -1.175, -3.5); // Offset target to ensure grid is centered left of HUD panel
+        controls.minDistance = 10;
+        controls.maxDistance = 60;
+
+        // ── GAME THEORY SYSTEM VARIABLES ──────────────────────────────────
+        let gameMode = 'god';
+        let eggs = [];
+        let ancestryHistory = [];
+        let debris = []; // Shells and fried eggs
+        let isPaused = false;
+        let simSpeed = 1;
+        let pendingCollision = null; // Stored collision for player prompt
+        const arenaRadius = 5.0;
+
+        let activeEncounters = [];
+        let activeBirths = [];
+        let activeFloatingSymbols = [];
+        let simAccumulator = 0;
+
+        // Keyboard state
+        const keys = { w: false, a: false, s: false, d: false };
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = true;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
+        });
+
+        const speciesConfig = {
+            yellow: { color: 0xfdcc0d, strategy: 'hard', label: 'Aggressive (Always Hard)' }, // Clay yellow
+            blue: { color: 0x2774d8, strategy: 'soft', label: 'Cooperative (Always Soft)' }
+        };
+
+        function applyFaceOffsets(mesh) {
+            const uData = mesh.userData;
+            uData.leftEye.position.set(faceConfig.leftEye.posX, faceConfig.leftEye.posY, faceConfig.leftEye.posZ);
+            uData.leftEye.rotation.set(faceConfig.leftEye.rotX * Math.PI / 180, faceConfig.leftEye.rotY * Math.PI / 180, faceConfig.leftEye.rotZ * Math.PI / 180);
+            uData.rightEye.position.set(faceConfig.rightEye.posX, faceConfig.rightEye.posY, faceConfig.rightEye.posZ);
+            uData.rightEye.rotation.set(faceConfig.rightEye.rotX * Math.PI / 180, faceConfig.rightEye.rotY * Math.PI / 180, faceConfig.rightEye.rotZ * Math.PI / 180);
+            uData.eyebrows.position.set(faceConfig.eyebrows.posX, faceConfig.eyebrows.posY, faceConfig.eyebrows.posZ);
+            uData.eyebrows.rotation.set(faceConfig.eyebrows.rotX * Math.PI / 180, faceConfig.eyebrows.rotY * Math.PI / 180, faceConfig.eyebrows.rotZ * Math.PI / 180);
+            uData.mouth.position.set(faceConfig.mouth.posX, faceConfig.mouth.posY, faceConfig.mouth.posZ);
+            uData.mouth.rotation.set(faceConfig.mouth.rotX * Math.PI / 180, faceConfig.mouth.rotY * Math.PI / 180, faceConfig.mouth.rotZ * Math.PI / 180);
+            if (uData.backDecal && faceConfig.backDecal) {
+                uData.backDecal.position.set(faceConfig.backDecal.posX, faceConfig.backDecal.posY, faceConfig.backDecal.posZ);
+                uData.backDecal.rotation.set(faceConfig.backDecal.rotX * Math.PI / 180, faceConfig.backDecal.rotY * Math.PI / 180, faceConfig.backDecal.rotZ * Math.PI / 180);
+            }
+
+            // Apply configuration scales
+            uData.leftEye.scale.set(faceConfig.leftEye.scale || 1.0, faceConfig.leftEye.scale || 1.0, (faceConfig.leftEye.scale || 1.0) * 0.45);
+            uData.rightEye.scale.set(faceConfig.rightEye.scale || 1.0, faceConfig.rightEye.scale || 1.0, (faceConfig.rightEye.scale || 1.0) * 0.45);
+            uData.eyebrows.scale.set(faceConfig.eyebrows.scale || 1.0, faceConfig.eyebrows.scale || 1.0, 1.0);
+            uData.mouth.scale.set(faceConfig.mouth.scale || 1.0, faceConfig.mouth.scale || 1.0, 1.0);
+            if (uData.backDecal && faceConfig.backDecal) {
+                uData.backDecal.scale.set(faceConfig.backDecal.scale || 1.0, faceConfig.backDecal.scale || 1.0, 1.0);
+            }
+        }
+
+        function createEnergyRing(egg, size, colorHex) {
+            // Empty-disabled to remove all floor indicators
+        }
+
+        const baseScale = 0.55; // Scaled down egg size to fit individual grid tiles
+
+        function spawnEgg(x, z, species) {
+            const config = speciesConfig[species];
+            const mesh = createMascot(config.color);
+            const currentSize = faceConfig.eggSize || baseScale;
+            const restingY = -1.1 + (1.1 * currentSize);
+            mesh.position.set(x, restingY, z);
+            mesh.scale.set(currentSize, currentSize, currentSize);
+            scene.add(mesh);
+            applyFaceOffsets(mesh);
+
+            const gX = Math.max(0, Math.min(14, Math.round(x / 1.5) + 7));
+            const gZ = Math.max(0, Math.min(14, Math.round(z / 1.5) + 7));
+
+            const egg = {
+                id: Math.random().toString(36).substr(2, 9),
+                mesh: mesh,
+                species: species,
+                strategy: config.strategy,
+                energy: 90 + Math.random() * 20, // Biological starting energy variation (90 to 110)
+                velocity: new THREE.Vector3(),
+                isPlayer: false,
+                isCracked: false,
+                gridX: gX, gridZ: gZ,
+                targetX: gX, targetZ: gZ,
+                startX: gX, startZ: gZ,
+                moveProgress: 1.0,
+                history: {},
+                collisionCooldown: 0,
+                inEncounter: false,
+                colorHex: config.color,
+                bobOffset: Math.random() * Math.PI * 2,
+                aiWanderTimer: Math.random() * 2.0,
+                positivePulseTime: 0.0,
+                negativePulseTime: 0.0,
+                baseRotationY: 0.0,
+                encountersSinceLastBreed: 5 // Gen 0 starts ready to breed
+            };
+
+            const startWeights = { hard: 0, soft: 0 };
+            if (config.strategy === 'hard') startWeights.hard = 1.0;
+            else startWeights.soft = 1.0;
+            egg.weights = startWeights;
+
+            createEnergyRing(egg, currentSize, config.color);
+
+            eggs.push(egg);
+            
+            // Record in ancestry history
+            const histNode = {
+                id: egg.id,
+                generation: 0,
+                colorHex: egg.colorHex,
+                species: egg.species,
+                weights: { ...egg.weights },
+                isAlive: true,
+                parents: []
+            };
+            ancestryHistory.push(histNode);
+            drawAncestryTree();
+
+            updateScoreboard();
+            return egg;
+        }
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        function get3DPosition(gridX, gridZ, size = 0.55) {
+            const posX = (gridX - 7) * 1.5;
+            const posZ = (gridZ - 7) * 1.5;
+            const restingY = -1.1 + (1.1 * size);
+            return new THREE.Vector3(posX, restingY, posZ);
+        }
+
+        // Initialize population at discrete tile centers
+        function initPopulation() {
+            eggs.forEach(e => {
+                scene.remove(e.mesh);
+                if (e.energyRing) scene.remove(e.energyRing);
+            });
+            eggs = [];
+            ancestryHistory = [];
+            clearDebris();
+
+            // Populate all 225 coordinates (15x15 grid)
+            const positions = [];
+            for (let c = -7; c <= 7; c++) {
+                for (let r = -7; r <= 7; r++) {
+                    positions.push({ c, r });
+                }
+            }
+
+            // Shuffle the positions to randomly distribute
+            for (let i = positions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const temp = positions[i];
+                positions[i] = positions[j];
+                positions[j] = temp;
+            }
+
+            const toSpawn = [
+                'yellow', 'yellow', 'yellow', 'yellow', 'yellow', 'yellow',
+                'blue', 'blue', 'blue', 'blue', 'blue', 'blue'
+            ];
+            let spawned = 0;
+
+            for (let i = 0; i < positions.length && spawned < toSpawn.length; i++) {
+                const { c, r } = positions[i];
+                const gx = c + 7;
+                const gz = r + 7;
+
+                // Ensure occupancy check
+                const occupied = eggs.some(e => e.gridX === gx && e.gridZ === gz);
+                if (!occupied) {
+                    spawnEgg(c * 1.5, r * 1.5, toSpawn[spawned]);
+                    spawned++;
+                }
+            }
+        }
+
+        // ── COLLISION RESOLUTION (GAME THEORY PAYOFFS) ─────────────────────
+        function resolveGameTheory(eggA, eggB, decisionA = null, decisionB = null) {
+            // 1. Get strategies
+            const actA = decisionA || getStrategyChoice(eggA, eggB);
+            const actB = decisionB || getStrategyChoice(eggB, eggA);
+
+            // Save history
+            eggA.history[eggB.id] = actB;
+            eggB.history[eggA.id] = actA;
+
+            // Cooldowns (increased to 2.5 to give time for animations to play out)
+            eggA.collisionCooldown = 2.5;
+            eggB.collisionCooldown = 2.5;
+
+            // Enforce placement consistency on the grid variables immediately
+            eggA.startX = eggA.targetX = eggA.gridX;
+            eggA.startZ = eggA.targetZ = eggA.gridZ;
+            eggB.startX = eggB.targetX = eggB.gridX;
+            eggB.startZ = eggB.targetZ = eggB.gridZ;
+
+            // Payoff evaluation & Expression/Symbol Animations
+            if (actA === 'soft' && actB === 'soft') {
+                // Coop + Coop
+                eggA.energy += 15;
+                eggB.energy += 15;
+                eggA.positivePulseTime = 1.0;
+                eggB.positivePulseTime = 1.0;
+                showScoreBubble(eggA.mesh.position, '🤝 Coop +15', '#10b981');
+                showScoreBubble(eggB.mesh.position, '🤝 Coop +15', '#10b981');
+
+                // Happy expressions
+                setEggExpression(eggA, 'happy');
+                setEggExpression(eggB, 'happy');
+            } else if (actA === 'soft' && actB === 'hard') {
+                eggA.energy -= 15;
+                eggB.energy += 15;
+                eggA.negativePulseTime = 1.0;
+                eggB.positivePulseTime = 1.0;
+                eggB.baseRotationY = eggB.mesh.rotation.y;
+                showScoreBubble(eggA.mesh.position, '💥 Cracked -15', '#ef4444');
+                showScoreBubble(eggB.mesh.position, '✨ Payout +15', '#10b981');
+
+                // Soft is unhappy, Hard is happy
+                setEggExpression(eggA, 'unhappy');
+                setEggExpression(eggB, 'happy');
+            } else if (actA === 'hard' && actB === 'soft') {
+                eggA.energy += 15;
+                eggB.energy -= 15;
+                eggA.positivePulseTime = 1.0;
+                eggB.negativePulseTime = 1.0;
+                eggA.baseRotationY = eggA.mesh.rotation.y;
+                showScoreBubble(eggA.mesh.position, '✨ Payout +15', '#10b981');
+                showScoreBubble(eggB.mesh.position, '💥 Cracked -15', '#ef4444');
+
+                // Hard is happy, Soft is unhappy
+                setEggExpression(eggA, 'happy');
+                setEggExpression(eggB, 'unhappy');
+            } else if (actA === 'hard' && actB === 'hard') {
+                eggA.energy -= 10;
+                eggB.energy -= 10;
+                eggA.negativePulseTime = 1.0;
+                eggB.negativePulseTime = 1.0;
+                showScoreBubble(eggA.mesh.position, '💢 Clash -10', '#f59e0b');
+                showScoreBubble(eggB.mesh.position, '💢 Clash -10', '#f59e0b');
+
+                // Both unhappy
+                setEggExpression(eggA, 'unhappy');
+                setEggExpression(eggB, 'unhappy');
+            }
+
+            // Increment encounter counters since last breed
+            eggA.encountersSinceLastBreed = (eggA.encountersSinceLastBreed || 0) + 1;
+            eggB.encountersSinceLastBreed = (eggB.encountersSinceLastBreed || 0) + 1;
+
+            // Clamp energy to a maximum of 200
+            eggA.energy = Math.min(200, eggA.energy);
+            eggB.energy = Math.min(200, eggB.energy);
+
+            // Energy-based Sexual Breeding Check (both have >= 70 energy AND both have >= 5 encounters since last breed)
+            if (eggA.energy >= 70 && eggB.energy >= 70 && eggA.encountersSinceLastBreed >= 5 && eggB.encountersSinceLastBreed >= 5) {
+                // Attempt to spawn hybrid
+                const spawned = spawnHybrid(eggA, eggB);
+                if (spawned) {
+                    // Deduct metabolic cost
+                    eggA.energy -= 35;
+                    eggB.energy -= 35;
+                    
+                    // Reset encounter counter
+                    eggA.encountersSinceLastBreed = 0;
+                    eggB.encountersSinceLastBreed = 0;
+
+                    eggA.positivePulseTime = 1.0;
+                    eggB.positivePulseTime = 1.0;
+                    eggA.baseRotationY = eggA.mesh.rotation.y;
+                    eggB.baseRotationY = eggB.mesh.rotation.y;
+
+                    // Set happy expressions and hearts
+                    setEggExpression(eggA, 'happy');
+                    setEggExpression(eggB, 'happy');
+                    spawnFloatingSymbol(eggA.mesh.position, 'heart');
+                    spawnFloatingSymbol(eggB.mesh.position, 'heart');
+                }
+            }
+
+            updateScoreboard();
+        }
+
+        function getStrategyChoice(egg, opponent) {
+            if (egg.strategy === 'soft') return 'soft';
+            if (egg.strategy === 'hard') return 'hard';
+            if (egg.strategy === 'hybrid' && egg.weights) {
+                const totalW = (egg.weights.hard || 0) + (egg.weights.soft || 0);
+                if (totalW > 0) {
+                    const normHard = (egg.weights.hard || 0) / totalW;
+                    return Math.random() < normHard ? 'hard' : 'soft';
+                }
+            }
+            return 'soft';
+        }
+
+        function findFreeAdjacentGridTile(gx, gz) {
+            const directions = [
+                {x: -1, z: 0}, {x: 1, z: 0}, {x: 0, z: -1}, {x: 0, z: 1},
+                {x: -1, z: -1}, {x: 1, z: 1}, {x: -1, z: 1}, {x: 1, z: -1}
+            ];
+            directions.sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < directions.length; i++) {
+                const tx = gx + directions[i].x;
+                const tz = gz + directions[i].z;
+                if (tx >= 0 && tx <= 14 && tz >= 0 && tz <= 14) {
+                    const occupied = eggs.some(e => !e.isCracked && (
+                        (e.gridX === tx && e.gridZ === tz) ||
+                        (e.targetX === tx && e.targetZ === tz)
+                    ));
+                    if (!occupied) {
+                        return { x: tx, z: tz };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function spawnHybrid(parentA, parentB) {
+            if (eggs.length >= 225) return false; // Population cap is 100% of 15x15 grid cells
+
+            const freeTile = findFreeAdjacentGridTile(parentA.gridX, parentA.gridZ) || 
+                             findFreeAdjacentGridTile(parentB.gridX, parentB.gridZ);
+            if (!freeTile) return false; // nowhere to breed
+
+            let childSpecies;
+            if (parentA.species === parentB.species) {
+                childSpecies = parentA.species;
+            } else if (parentA.species === 'hybrid-complex' || parentB.species === 'hybrid-complex' || parentA.species.startsWith('hybrid-') || parentB.species.startsWith('hybrid-')) {
+                childSpecies = 'hybrid-complex';
+            } else {
+                childSpecies = 'hybrid-' + [parentA.species, parentB.species].sort().join('-');
+            }
+            
+            // Blend colors weighted by parent energy levels at conception
+            const colorA = new THREE.Color(parentA.colorHex);
+            const colorB = new THREE.Color(parentB.colorHex);
+            const totalE = parentA.energy + parentB.energy;
+            const wA = totalE > 0 ? parentA.energy / totalE : 0.5;
+            const wB = totalE > 0 ? parentB.energy / totalE : 0.5;
+            const childColor = colorB.clone().lerp(colorA, wA).getHex();
+
+            const childX = (freeTile.x - 7) * 1.5;
+            const childZ = (freeTile.z - 7) * 1.5;
+
+            // Spawn
+            const mesh = createMascot(childColor);
+            const startPosA = parentA.mesh.position.clone();
+            const startPosB = parentB.mesh.position.clone();
+            startPosA.y += 0.8;
+            startPosB.y += 0.8;
+            const midPoint = new THREE.Vector3().addVectors(startPosA, startPosB).multiplyScalar(0.5);
+            midPoint.y += 2.0; // Float up in the air
+
+            mesh.position.copy(midPoint);
+            mesh.scale.set(0.01, 0.01, 0.01);
+            scene.add(mesh);
+            applyFaceOffsets(mesh);
+
+            // 3D Heart meshes for parent fusion animation
+            const heartA = new THREE.Mesh(heartGeo, symbolPinkMat);
+            const heartB = new THREE.Mesh(heartGeo, symbolPinkMat);
+            heartA.scale.set(0.65, 0.65, 0.65);
+            heartB.scale.set(0.65, 0.65, 0.65);
+
+            heartA.position.copy(startPosA);
+            heartB.position.copy(startPosB);
+            scene.add(heartA);
+            scene.add(heartB);
+
+            const childStrategy = 'hybrid';
+            const targetSize = faceConfig.eggSize || baseScale;
+
+            const egg = {
+                id: Math.random().toString(36).substr(2, 9),
+                mesh: mesh,
+                species: childSpecies,
+                strategy: childStrategy,
+                energy: 100,
+                velocity: new THREE.Vector3(),
+                isPlayer: false,
+                isCracked: false,
+                gridX: freeTile.x,
+                gridZ: freeTile.z,
+                targetX: freeTile.x,
+                targetZ: freeTile.z,
+                startX: freeTile.x,
+                startZ: freeTile.z,
+                moveProgress: 1.0,
+                history: {},
+                collisionCooldown: 1.5,
+                colorHex: childColor,
+                bobOffset: Math.random() * Math.PI * 2,
+                aiWanderTimer: Math.random() * 2.0,
+                positivePulseTime: 0.0,
+                negativePulseTime: 0.0,
+                baseRotationY: 0.0,
+                encountersSinceLastBreed: 0 // New hybrid starts at 0 encounters
+            };
+
+            // Procedural inheritance of parent weights based on energy levels
+            egg.weights = {
+                hard: ((parentA.weights.hard || 0) * wA) + ((parentB.weights.hard || 0) * wB),
+                soft: ((parentA.weights.soft || 0) * wA) + ((parentB.weights.soft || 0) * wB)
+            };
+
+            createEnergyRing(egg, targetSize, childColor);
+            if (egg.energyRing) egg.energyRing.visible = false;
+
+            eggs.push(egg);
+
+            // Determine parent generations
+            const parentANode = ancestryHistory.find(n => n.id === parentA.id);
+            const parentBNode = ancestryHistory.find(n => n.id === parentB.id);
+            const genA = parentANode ? parentANode.generation : 0;
+            const genB = parentBNode ? parentBNode.generation : 0;
+            const childGen = Math.max(genA, genB) + 1;
+
+            egg.generation = childGen;
+
+            // Record in ancestry history
+            ancestryHistory.push({
+                id: egg.id,
+                generation: childGen,
+                colorHex: egg.colorHex,
+                species: childSpecies,
+                weights: { ...egg.weights },
+                isAlive: true,
+                parents: [parentA.id, parentB.id]
+            });
+            drawAncestryTree();
+
+            // Hide new hybrid egg initially during fusion
+            mesh.visible = false;
+            mesh.scale.set(0.01, 0.01, 0.01);
+
+            activeBirths.push({
+                type: 'hybrid',
+                mesh: mesh,
+                heartA: heartA,
+                heartB: heartB,
+                startPosA: startPosA,
+                startPosB: startPosB,
+                midPoint: midPoint,
+                childX: childX,
+                childZ: childZ,
+                targetSize: targetSize,
+                egg: egg,
+                progress: 0,
+                resolved: false
+            });
+            return true;
+        }
+
+
+
+
+
+        function clearDebris() {
+            debris.forEach(d => {
+                const mesh = d.group || d;
+                scene.remove(mesh);
+                if (d.material) d.material.dispose();
+            });
+            debris = [];
+        }
+
+        // Spawn a stone-black graveyard cross when a mascot dies
+        // Spawn a stone-black graveyard cross when a mascot dies
+        function createGraveCross(gridX, gridZ, x, z) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x27272a, // zinc-800 stone-black
+                roughness: 0.95,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 1.0
+            });
+
+            // Vertical post
+            const postGeo = new THREE.BoxGeometry(0.18, 0.9, 0.18);
+            const post = new THREE.Mesh(postGeo, mat);
+            post.position.y = -1.1 + 0.45;
+            post.castShadow = true;
+            post.receiveShadow = true;
+            group.add(post);
+
+            // Horizontal cross beam
+            const beamGeo = new THREE.BoxGeometry(0.55, 0.18, 0.18);
+            const beam = new THREE.Mesh(beamGeo, mat);
+            beam.position.y = -1.1 + 0.65;
+            beam.castShadow = true;
+            beam.receiveShadow = true;
+            group.add(beam);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+            debris.push({
+                group: group,
+                material: mat,
+                gridX: gridX,
+                gridZ: gridZ,
+                age: 0,
+                maxAge: 12.0 // 12 simulation seconds lifetime
+            });
+        }
+
+        // ── COLOR CHART TOOLTIP SYSTEM ────────────────────────────────────
+        function showColorClusterTooltip(event, clusterColor) {
+            const cluster = (window.activeColorClusters || []).find(c => c.color === clusterColor);
+            if (!cluster || !cluster.eggs || cluster.eggs.length === 0) return;
+
+            const avgWeights = { hard: 0, soft: 0, tft: 0, random: 0 };
+            cluster.eggs.forEach(egg => {
+                const w = egg.weights ? { ...egg.weights } : { hard: 0, soft: 0, tft: 0, random: 0 };
+                if (!egg.weights) {
+                    if (egg.strategy === 'hard') w.hard = 1.0;
+                    else if (egg.strategy === 'soft') w.soft = 1.0;
+                    else if (egg.strategy === 'tft') w.tft = 1.0;
+                    else if (egg.strategy === 'random') w.random = 1.0;
+                }
+                avgWeights.hard += w.hard;
+                avgWeights.soft += w.soft;
+                avgWeights.tft += w.tft;
+                avgWeights.random += w.random;
+
+                // Highlight this egg in the 3D scene
+                if (!egg.isCracked) {
+                    egg.isHighlighted = true;
+                    // Determine dominant weight strategy to choose highlight color, or fall back to strategy
+                    let mainStrat = egg.strategy || 'soft';
+                    if (egg.weights) {
+                        const weightsArr = Object.entries(egg.weights);
+                        weightsArr.sort((a, b) => b[1] - a[1]);
+                        mainStrat = weightsArr[0][0];
+                    }
+
+                    const emissiveCol = new THREE.Color();
+                    if (mainStrat === 'hard') emissiveCol.setRGB(1.0, 0.9, 0.0);       // Yellow
+                    else if (mainStrat === 'soft') emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
+                    else if (mainStrat === 'tft') emissiveCol.setRGB(1.0, 0.15, 0.1);   // Red
+                    else emissiveCol.setRGB(0.05, 1.0, 0.05);                          // Green
+
+                    egg._emissiveCol = emissiveCol;
+                    const uData = egg.mesh.userData;
+                    const shells = [uData.topShell, uData.bottomShell];
+                    shells.forEach(shell => {
+                        if (shell && shell.material) {
+                            shell.material.emissive.copy(emissiveCol);
+                            shell.material.emissiveIntensity = 3.5;
+                        }
+                    });
+                }
+            });
+
+            const total = cluster.eggs.length;
+            const pctHard = (avgWeights.hard / total) * 100;
+            const pctSoft = (avgWeights.soft / total) * 100;
+
+            const tooltip = document.getElementById('ancestry-tooltip');
+            tooltip.innerHTML = `
+                <div class="tooltip-header">
+                    <span style="font-weight: 700; color: #ffffff;">Cluster: ${clusterColor.toUpperCase()}</span>
+                    <span class="tooltip-status alive" style="background: rgba(255,255,255,0.1); color: #ffffff; border: 1px solid rgba(255,255,255,0.2);">
+                        🥚 Count: ${total}
+                    </span>
+                </div>
+                <div style="font-weight: 600; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px;">Average Gene Pool:</div>
+                
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    ${pctHard > 0.05 ? `
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem;">
+                        <span style="color: #fdcc0d; font-weight: 600;">🟡 Aggressive (Aggr.):</span>
+                        <span style="color: #ffffff; font-weight: 700;">${pctHard.toFixed(1)}%</span>
+                    </div>` : ''}
+                    ${pctSoft > 0.05 ? `
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem;">
+                        <span style="color: #2774d8; font-weight: 600;">🔵 Cooperative (Coop.):</span>
+                        <span style="color: #ffffff; font-weight: 700;">${pctSoft.toFixed(1)}%</span>
+                    </div>` : ''}
+                </div>
+
+                <div style="margin-top: 10px; height: 10px; width: 100%; border-radius: 5px; display: flex; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);">
+                    ${pctHard > 0.05 ? `<div style="width: ${pctHard}%; background: #fdcc0d; height: 100%;"></div>` : ''}
+                    ${pctSoft > 0.05 ? `<div style="width: ${pctSoft}%; background: #2774d8; height: 100%;"></div>` : ''}
+                </div>
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.opacity = '1';
+        }
+
+        function moveColorClusterTooltip(event) {
+            const tooltip = document.getElementById('ancestry-tooltip');
+            tooltip.style.position = 'fixed';
+            
+            const tooltipWidth = tooltip.offsetWidth || 250;
+            const tooltipHeight = tooltip.offsetHeight || 150;
+            
+            let left = event.clientX + 16;
+            let top = event.clientY + 12;
+            
+            if (left + tooltipWidth > window.innerWidth) {
+                left = event.clientX - tooltipWidth - 16;
+            }
+            if (top + tooltipHeight > window.innerHeight) {
+                top = event.clientY - tooltipHeight - 12;
+            }
+            if (left < 0) left = 8;
+            if (top < 0) top = 8;
+            
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        function hideColorClusterTooltip() {
+            const tooltip = document.getElementById('ancestry-tooltip');
+            tooltip.style.display = 'none';
+            tooltip.style.opacity = '0';
+
+            // Reset all highlighted eggs
+            eggs.forEach(egg => {
+                if (egg.isHighlighted) {
+                    egg.isHighlighted = false;
+                    egg._emissiveCol = null;
+                    const uData = egg.mesh.userData;
+                    const shells = [uData.topShell, uData.bottomShell];
+                    shells.forEach(shell => {
+                        if (shell && shell.material) {
+                            shell.material.emissive.setHex(0x000000);
+                            shell.material.emissiveIntensity = 0.0;
+                        }
+                    });
+                }
+            });
+        }
+
+        // ── FLOATING TEXT BUBBLES ─────────────────────────────────────────
+        function showScoreBubble(pos, text, color) {
+            // Disabled
+        }
+
+        // ── HUD PANEL LOGIC ───────────────────────────────────────────────
+        function updateScoreboard() {
+            const aliveEggs = eggs.filter(e => !e.isCracked);
+            const aliveCount = aliveEggs.length;
+            const popEl = document.getElementById('panel-pop-count');
+            if (popEl) {
+                popEl.textContent = aliveCount;
+            }
+
+            let totalEnergy = 0;
+            let energyHard = 0;
+            let energySoft = 0;
+
+            aliveEggs.forEach(egg => {
+                const w = egg.weights || { hard: 0, soft: 0 };
+                // Fallback mapping for pure strategies if weights aren't set
+                if (!egg.weights) {
+                    if (egg.strategy === 'hard') w.hard = 1.0;
+                    else if (egg.strategy === 'soft') w.soft = 1.0;
+                }
+                const energyVal = Math.max(0, egg.energy);
+                totalEnergy += energyVal;
+
+                energyHard += (w.hard || 0) * energyVal;
+                energySoft += (w.soft || 0) * energyVal;
+            });
+
+            // Convert to percentages
+            let pctHard = 0;
+            let pctSoft = 0;
+
+            if (totalEnergy > 0) {
+                pctHard = (energyHard / totalEnergy) * 100;
+                pctSoft = (energySoft / totalEnergy) * 100;
+            }
+
+            const elAggr = document.getElementById('legend-count-aggr');
+            const elCoop = document.getElementById('legend-count-coop');
+
+            if (elAggr) elAggr.textContent = pctHard.toFixed(1) + '%';
+            if (elCoop) elCoop.textContent = pctSoft.toFixed(1) + '%';
+
+            // Helper functions for dynamic color distance clustering (Euclidean RGB)
+            function hexToRgb(hex) {
+                const num = parseInt(hex.replace('#', ''), 16);
+                return {
+                    r: (num >> 16) & 255,
+                    g: (num >> 8) & 255,
+                    b: num & 255
+                };
+            }
+
+            function getColorDistance(hex1, hex2) {
+                const rgb1 = hexToRgb(hex1);
+                const rgb2 = hexToRgb(hex2);
+                const dr = (rgb1.r - rgb2.r) / 255;
+                const dg = (rgb1.g - rgb2.g) / 255;
+                const db = (rgb1.b - rgb2.b) / 255;
+                return Math.sqrt(dr * dr + dg * dg + db * db);
+            }
+
+            // Count raw distinct colors
+            const rawCounts = {};
+            const rawEggs = {};
+            aliveEggs.forEach(egg => {
+                const hexStr = '#' + egg.colorHex.toString(16).padStart(6, '0').toLowerCase();
+                rawCounts[hexStr] = (rawCounts[hexStr] || 0) + 1;
+                if (!rawEggs[hexStr]) rawEggs[hexStr] = [];
+                rawEggs[hexStr].push(egg);
+            });
+
+            // Sort unique colors by raw count descending to establish dominant centroids
+            const sortedRaw = Object.entries(rawCounts)
+                .map(([color, count]) => ({ color, count, eggs: rawEggs[color] }))
+                .sort((a, b) => b.count - a.count);
+
+            // Group look-alike colors into dynamic clusters (Option A)
+            const clusters = [];
+            const DISTANCE_THRESHOLD = 0.10; // ~6% visual distance in normalized RGB space
+
+            sortedRaw.forEach(item => {
+                let merged = false;
+                for (const cluster of clusters) {
+                    if (getColorDistance(item.color, cluster.color) < DISTANCE_THRESHOLD) {
+                        cluster.count += item.count;
+                        cluster.eggs.push(...item.eggs);
+                        merged = true;
+                        break;
+                    }
+                }
+                if (!merged) {
+                    clusters.push({ color: item.color, count: item.count, eggs: [...item.eggs] });
+                }
+            });
+
+            // Save globally for tooltips
+            window.activeColorClusters = clusters;
+
+            // Sort clusters in descending order and slice the top 10
+            const top10Colors = clusters
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 10);
+
+            // Draw the bar chart with translateY swap animations
+            const chartEl = document.getElementById('population-color-chart');
+            if (chartEl) {
+                chartEl.style.position = 'relative';
+                if (top10Colors.length === 0) {
+                    chartEl.innerHTML = `<div id="color-chart-empty" style="font-size: 0.72rem; color: #475569; opacity: 0.7; text-align: center; padding: 6px 0;">No active population</div>`;
+                    chartEl.style.height = '40px';
+                } else {
+                    const maxVal = Math.max(...top10Colors.map(c => c.count));
+                    
+                    // Clear the empty state placeholder if it exists
+                    const emptyEl = document.getElementById('color-chart-empty');
+                    if (emptyEl) {
+                        emptyEl.remove();
+                    }
+
+                    // Get existing rows
+                    const existingRows = {};
+                    chartEl.querySelectorAll('.color-row').forEach(row => {
+                        existingRows[row.getAttribute('data-color')] = row;
+                    });
+
+                    // Set container height dynamically
+                    const rowHeight = 17;
+                    chartEl.style.height = (top10Colors.length * rowHeight) + 'px';
+
+                    // Track active colors in the current top 10
+                    const activeColors = new Set();
+
+                    top10Colors.forEach((item, index) => {
+                        activeColors.add(item.color);
+                        const widthPct = maxVal > 0 ? (item.count / maxVal) * 100 : 0;
+                        let row = existingRows[item.color];
+
+                        if (!row) {
+                            // Create a new row element if it doesn't exist
+                            row = document.createElement('div');
+                            row.className = 'color-row';
+                            row.setAttribute('data-color', item.color);
+                            row.style.cssText = `position: absolute; left: 0; right: 0; height: 14px; opacity: 0; transform: translateY(${index * rowHeight}px); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.72rem; cursor: pointer;`;
+                            row.innerHTML = `
+                                <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${item.color}; border: 1px solid rgba(255,255,255,0.4);"></span>
+                                    <div style="flex: 1; height: 12px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-left: 4px;">
+                                        <div class="color-bar-fill" style="width: 0%; height: 100%; background: ${item.color}; border-radius: 2px; transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                                    </div>
+                                </div>
+                                <span class="color-row-count" style="font-weight: 800; font-size: 0.88rem; color: #0f172a; min-width: 20px; text-align: right;">0</span>
+                            `;
+                            
+                            // Attach dynamic tooltip listeners
+                            row.addEventListener('mouseenter', (e) => showColorClusterTooltip(e, item.color));
+                            row.addEventListener('mousemove', (e) => moveColorClusterTooltip(e));
+                            row.addEventListener('mouseleave', () => hideColorClusterTooltip());
+
+                            chartEl.appendChild(row);
+                            // Fade in on browser layout tick
+                            setTimeout(() => { row.style.opacity = '1'; }, 10);
+                        } else {
+                            // Smoothly animate existing rows to new ranks
+                            row.style.transform = `translateY(${index * rowHeight}px)`;
+                            row.style.opacity = '1';
+                        }
+
+                        // Animate width changes and update text counts
+                        const fill = row.querySelector('.color-bar-fill');
+                        if (fill) fill.style.width = widthPct + '%';
+                        const countEl = row.querySelector('.color-row-count');
+                        if (countEl) countEl.textContent = item.count;
+                    });
+
+                    // Gracefully fade and clean up rows no longer in top 10
+                    Object.keys(existingRows).forEach(color => {
+                        if (!activeColors.has(color)) {
+                            const row = existingRows[color];
+                            row.style.opacity = '0';
+                            setTimeout(() => {
+                                if (row.parentNode === chartEl) {
+                                    chartEl.removeChild(row);
+                                }
+                            }, 400);
+                        }
+                    });
+                }
+            }
+        }
+
+        // ── DYNAMIC KEYBOARD SHORTCUTS EASTER EGG (FACE CONFIG) ───────────
+        const targetSelect = document.getElementById('control-target');
+        const slidePosX = document.getElementById('slide-posX');
+        const slidePosY = document.getElementById('slide-posY');
+        const slidePosZ = document.getElementById('slide-posZ');
+        const slideRotX = document.getElementById('slide-rotX');
+        const slideRotY = document.getElementById('slide-rotY');
+        const slideRotZ = document.getElementById('slide-rotZ');
+        const slideDecalScale = document.getElementById('slide-decalScale');
+        const slideEggSize = document.getElementById('slide-eggSize');
+        const slideEggEnergy = document.getElementById('slide-eggEnergy');
+
+        const valPosX = document.getElementById('val-posX');
+        const valPosY = document.getElementById('val-posY');
+        const valPosZ = document.getElementById('val-posZ');
+        const valEggSize = document.getElementById('val-eggSize');
+        const valEggEnergy = document.getElementById('val-eggEnergy');
+        const valRotX = document.getElementById('val-rotX');
+        const valRotY = document.getElementById('val-rotY');
+        const valRotZ = document.getElementById('val-rotZ');
+        const valDecalScale = document.getElementById('val-decalScale');
+
+        let debugEnergyOverride = null;
+
+        function updateSlidersFromConfig() {
+            const target = targetSelect.value;
+            let cfg;
+            
+            if (target.includes('Eye') || target === 'bothEyes') {
+                slidePosX.min = -0.5; slidePosX.max = 0.5;
+                slidePosY.min = 0.0; slidePosY.max = 0.5;
+                slidePosZ.min = 0.4; slidePosZ.max = 1.0;
+            } else if (target === 'eyebrows') {
+                slidePosX.min = -0.3; slidePosX.max = 0.3;
+                slidePosY.min = 0.2; slidePosY.max = 0.6;
+                slidePosZ.min = 0.5; slidePosZ.max = 1.0;
+            } else if (target === 'mouth') {
+                slidePosX.min = -0.3; slidePosX.max = 0.3;
+                slidePosY.min = -0.2; slidePosY.max = 0.3;
+                slidePosZ.min = 0.5; slidePosZ.max = 1.0;
+            } else if (target === 'backDecal') {
+                slidePosX.min = -0.3; slidePosX.max = 0.3;
+                slidePosY.min = -0.6; slidePosY.max = 0.6;
+                slidePosZ.min = -1.2; slidePosZ.max = -0.4;
+            }
+
+            if (target === 'bothEyes') {
+                cfg = faceConfig.rightEye;
+            } else {
+                cfg = faceConfig[target];
+            }
+            
+            slidePosX.value = target === 'bothEyes' ? Math.abs(cfg.posX) : cfg.posX;
+            slidePosY.value = cfg.posY;
+            slidePosZ.value = cfg.posZ;
+            slideRotX.value = cfg.rotX;
+            slideRotY.value = cfg.rotY;
+            slideRotZ.value = cfg.rotZ;
+            if (slideDecalScale) {
+                slideDecalScale.value = cfg.scale !== undefined ? cfg.scale : 1.0;
+            }
+
+            if (slideEggSize) {
+                slideEggSize.value = faceConfig.eggSize || 0.36;
+            }
+
+            updateDisplayValues();
+        }
+
+        function updateDisplayValues() {
+            valPosX.textContent = parseFloat(slidePosX.value).toFixed(2);
+            valPosY.textContent = parseFloat(slidePosY.value).toFixed(2);
+            valPosZ.textContent = parseFloat(slidePosZ.value).toFixed(2);
+            valRotX.textContent = slideRotX.value + '°';
+            valRotY.textContent = slideRotY.value + '°';
+            valRotZ.textContent = slideRotZ.value + '°';
+            if (valDecalScale && slideDecalScale) {
+                valDecalScale.textContent = parseFloat(slideDecalScale.value).toFixed(2);
+            }
+            if (valEggSize && slideEggSize) {
+                valEggSize.textContent = parseFloat(slideEggSize.value).toFixed(2);
+            }
+            if (valEggEnergy && slideEggEnergy) {
+                valEggEnergy.textContent = debugEnergyOverride !== null ? debugEnergyOverride : "None";
+            }
+        }
+
+        function onSliderChange() {
+            const target = targetSelect.value;
+            const px = parseFloat(slidePosX.value);
+            const py = parseFloat(slidePosY.value);
+            const pz = parseFloat(slidePosZ.value);
+            const rx = parseFloat(slideRotX.value);
+            const ry = parseFloat(slideRotY.value);
+            const rz = parseFloat(slideRotZ.value);
+            const sc = slideDecalScale ? parseFloat(slideDecalScale.value) : 1.0;
+
+            if (target === 'bothEyes') {
+                faceConfig.leftEye.posX = -px;
+                faceConfig.leftEye.posY = py;
+                faceConfig.leftEye.posZ = pz;
+                faceConfig.leftEye.rotX = rx;
+                faceConfig.leftEye.rotY = -ry;
+                faceConfig.leftEye.rotZ = -rz;
+                faceConfig.leftEye.scale = sc;
+
+                faceConfig.rightEye.posX = px;
+                faceConfig.rightEye.posY = py;
+                faceConfig.rightEye.posZ = pz;
+                faceConfig.rightEye.rotX = rx;
+                faceConfig.rightEye.rotY = ry;
+                faceConfig.rightEye.rotZ = rz;
+                faceConfig.rightEye.scale = sc;
+            } else {
+                faceConfig[target].posX = px;
+                faceConfig[target].posY = py;
+                faceConfig[target].posZ = pz;
+                faceConfig[target].rotX = rx;
+                faceConfig[target].rotY = ry;
+                faceConfig[target].rotZ = rz;
+                faceConfig[target].scale = sc;
+            }
+
+            updateDisplayValues();
+            eggs.forEach(egg => {
+                if (!egg.isCracked) applyFaceOffsets(egg.mesh);
+            });
+        }
+
+        [slidePosX, slidePosY, slidePosZ, slideRotX, slideRotY, slideRotZ, slideDecalScale].forEach(slider => {
+            if (slider) {
+                slider.addEventListener('input', onSliderChange);
+            }
+        });
+
+        slideEggSize.addEventListener('input', () => {
+            const size = parseFloat(slideEggSize.value);
+            faceConfig.eggSize = size;
+            valEggSize.textContent = size.toFixed(2);
+            eggs.forEach(egg => {
+                if (!egg.isCracked) {
+                    egg.mesh.scale.set(size, size, size);
+                }
+            });
+        });
+
+        slideEggEnergy.addEventListener('input', () => {
+            const val = parseInt(slideEggEnergy.value);
+            debugEnergyOverride = val;
+            valEggEnergy.textContent = val;
+            eggs.forEach(egg => {
+                if (!egg.isCracked) egg.energy = val;
+            });
+        });
+
+        // ── LIGHTS AND CAMERA SLIDER HANDLERS ──
+        const slideExposure = document.getElementById('slide-exposure');
+        const valExposure = document.getElementById('val-exposure');
+        slideExposure.addEventListener('input', () => {
+            const val = parseFloat(slideExposure.value);
+            renderer.toneMappingExposure = val;
+            valExposure.textContent = val.toFixed(2);
+        });
+
+        const slideAmbient = document.getElementById('slide-ambient');
+        const valAmbient = document.getElementById('val-ambient');
+        slideAmbient.addEventListener('input', () => {
+            const val = parseFloat(slideAmbient.value);
+            ambientLight.intensity = val;
+            valAmbient.textContent = val.toFixed(2);
+        });
+
+        const slideKeyLight = document.getElementById('slide-keyLight');
+        const valKeyLight = document.getElementById('val-keyLight');
+        slideKeyLight.addEventListener('input', () => {
+            const val = parseFloat(slideKeyLight.value);
+            keyLight.intensity = val;
+            valKeyLight.textContent = val.toFixed(2);
+        });
+
+        const slideFillLight = document.getElementById('slide-fillLight');
+        const valFillLight = document.getElementById('val-fillLight');
+        slideFillLight.addEventListener('input', () => {
+            const val = parseFloat(slideFillLight.value);
+            fillLight.intensity = val;
+            valFillLight.textContent = val.toFixed(2);
+        });
+
+        const slideRimLight = document.getElementById('slide-rimLight');
+        const valRimLight = document.getElementById('val-rimLight');
+        slideRimLight.addEventListener('input', () => {
+            const val = parseFloat(slideRimLight.value);
+            rimLight.intensity = val;
+            valRimLight.textContent = val.toFixed(2);
+        });
+
+        const slideCameraFov = document.getElementById('slide-cameraFov');
+        const valCameraFov = document.getElementById('val-cameraFov');
+        slideCameraFov.addEventListener('input', () => {
+            const val = parseInt(slideCameraFov.value);
+            camera.fov = val;
+            camera.updateProjectionMatrix();
+            valCameraFov.textContent = val + '°';
+        });
+
+        const slideCameraX = document.getElementById('slide-cameraX');
+        const valCameraX = document.getElementById('val-cameraX');
+        slideCameraX.addEventListener('input', () => {
+            const val = parseFloat(slideCameraX.value);
+            camera.position.x = val;
+            valCameraX.textContent = val.toFixed(1);
+        });
+
+        const slideCameraY = document.getElementById('slide-cameraY');
+        const valCameraY = document.getElementById('val-cameraY');
+        slideCameraY.addEventListener('input', () => {
+            const val = parseFloat(slideCameraY.value);
+            camera.position.y = val;
+            valCameraY.textContent = val.toFixed(1);
+        });
+
+        const slideCameraZ = document.getElementById('slide-cameraZ');
+        const valCameraZ = document.getElementById('val-cameraZ');
+        slideCameraZ.addEventListener('input', () => {
+            const val = parseFloat(slideCameraZ.value);
+            camera.position.z = val;
+            valCameraZ.textContent = val.toFixed(1);
+        });
+
+        targetSelect.addEventListener('change', updateSlidersFromConfig);
+
+        // Reset Face Configuration
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            faceConfig = JSON.parse(JSON.stringify(defaultConfig));
+            localStorage.removeItem('clayMascotFaceConfig');
+            debugEnergyOverride = null;
+            slideEggEnergy.value = 100;
+            eggs.forEach(egg => {
+                if (!egg.isCracked) {
+                    applyFaceOffsets(egg.mesh);
+                    const size = faceConfig.eggSize || baseScale;
+                    egg.mesh.scale.set(size, size, size);
+                    egg.energy = 100;
+                }
+            });
+            updateSlidersFromConfig();
+        });
+
+        // Pause simulation
+        const pauseBtn = document.getElementById('pause-btn');
+        const hudPauseBtn = document.getElementById('hud-pause-btn');
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const label = isPaused ? '▶️ Resume' : '⏸️ Pause';
+            pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+            pauseBtn.classList.toggle('btn-primary', isPaused);
+            pauseBtn.classList.toggle('btn-secondary', !isPaused);
+            
+            hudPauseBtn.textContent = label;
+            hudPauseBtn.classList.toggle('btn-primary', !isPaused);
+            hudPauseBtn.classList.toggle('btn-secondary', isPaused);
+        }
+
+        pauseBtn.addEventListener('click', togglePause);
+        hudPauseBtn.addEventListener('click', togglePause);
+
+        // Restart simulation
+        document.getElementById('hud-restart-btn').addEventListener('click', () => {
+            initPopulation();
+            drawAncestryTree();
+        });
+
+        // Speed Selector
+        const speedBtns = document.querySelectorAll('.speed-btn');
+        speedBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                speedBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                simSpeed = parseFloat(btn.getAttribute('data-speed'));
+            });
+        });
+
+        // Save Face Config
+        const modal = document.getElementById('export-modal');
+        const jsonOutput = document.getElementById('json-output');
+        const toast = document.getElementById('toast');
+
+        document.getElementById('save-btn').addEventListener('click', () => {
+            localStorage.setItem('clayMascotFaceConfig', JSON.stringify(faceConfig, null, 2));
+            jsonOutput.value = JSON.stringify(faceConfig, null, 2);
+            modal.style.display = 'flex';
+        });
+
+        document.getElementById('close-modal-btn').addEventListener('click', () => modal.style.display = 'none');
+
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            jsonOutput.select();
+            navigator.clipboard.writeText(jsonOutput.value).then(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            });
+        });
+
+        // Ancestry Panel Logic
+        const ancestryPanel = document.getElementById('ancestry-panel');
+        const ancestryToggleBtn = document.getElementById('ancestry-toggle-btn');
+        const closeAncestryBtn = document.getElementById('close-ancestry-btn');
+        const resizeHandle = document.getElementById('ancestry-resize-handle');
+        let isResizing = false;
+
+        ancestryToggleBtn.addEventListener('click', () => {
+            ancestryPanel.classList.add('open');
+            ancestryPanel.style.right = '20px';
+            ancestryToggleBtn.style.display = 'none';
+            drawAncestryTree();
+        });
+
+        closeAncestryBtn.addEventListener('click', () => {
+            ancestryPanel.classList.remove('open');
+            const width = ancestryPanel.offsetWidth || 500;
+            ancestryPanel.style.right = `-${width + 60}px`;
+            ancestryToggleBtn.style.display = 'flex';
+        });
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizeHandle.classList.add('resizing');
+            document.body.style.cursor = 'ew-resize';
+            ancestryPanel.style.transition = 'none'; // Disable transition during drag
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const viewportWidth = window.innerWidth;
+            const newWidth = viewportWidth - e.clientX - 20;
+
+            if (newWidth >= 320 && newWidth <= viewportWidth - 80) {
+                ancestryPanel.style.width = newWidth + 'px';
+                drawAncestryTree();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle.classList.remove('resizing');
+                document.body.style.cursor = 'default';
+                ancestryPanel.style.transition = 'right 0.4s cubic-bezier(0.16, 1, 0.3, 1), width 0.1s ease'; // Restore transition
+                drawAncestryTree();
+            }
+        });
+
+        function killEggHistory(id) {
+            const node = ancestryHistory.find(n => n.id === id);
+            if (node) {
+                node.isAlive = false;
+                drawAncestryTree();
+            }
+        }
+
+        function drawAncestryTree() {
+            const svg = document.getElementById('ancestry-svg');
+            if (!svg) return;
+            svg.innerHTML = '';
+
+            if (ancestryHistory.length === 0) return;
+
+            // Add drop-shadow filter for clay nodes
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            defs.innerHTML = `
+                <filter id="clay-shadow" x="-40%" y="-40%" width="180%" height="180%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity="0.16" flood-color="#3a2010" />
+                </filter>
+            `;
+            svg.appendChild(defs);
+
+            // Group by generation
+            const generations = {};
+            ancestryHistory.forEach(node => {
+                const gen = node.generation || 0;
+                if (!generations[gen]) generations[gen] = [];
+                generations[gen].push(node);
+            });
+
+            const maxGen = Math.max(...Object.keys(generations).map(Number));
+            
+            // Layout constants
+            const svgContainer = svg.parentElement;
+            const svgWidth = svgContainer ? svgContainer.clientWidth : 450;
+            svg.setAttribute('width', svgWidth);
+            const rowHeight = 75;
+            const nodeRadius = 10;
+            const paddingX = 24;
+            const paddingY = 32;
+            
+            // Extra spacing for staggered Gen 0 rows
+            const svgHeight = paddingY * 2 + maxGen * rowHeight + 20;
+            svg.setAttribute('height', Math.max(380, svgHeight));
+
+            const positions = {};
+
+            for (let g = 0; g <= maxGen; g++) {
+                const nodes = generations[g] || [];
+                const count = nodes.length;
+                
+                nodes.forEach((node, idx) => {
+                    let x = svgWidth / 2;
+                    if (count > 1) {
+                        x = paddingX + (idx / (count - 1)) * (svgWidth - paddingX * 2);
+                    }
+                    
+                    // Stagger Gen 0 layout to prevent squishing
+                    let y = paddingY + g * rowHeight;
+                    if (g === 0) {
+                        y += (idx % 2 === 0 ? 0 : 20);
+                    } else {
+                        y += 20; // offset general height to leave room for staggered gen 0
+                    }
+                    
+                    positions[node.id] = { x, y, node };
+                });
+            }
+
+            // 1. Draw connection lines as smooth bezier curves
+            ancestryHistory.forEach(node => {
+                if (node.parents && node.parents.length === 2) {
+                    const posC = positions[node.id];
+                    const posP1 = positions[node.parents[0]];
+                    const posP2 = positions[node.parents[1]];
+                    
+                    if (posC && posP1 && posP2) {
+                        // Curve from Parent 1 to Child
+                        const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        const dy1 = posC.y - posP1.y;
+                        const d1 = `M ${posP1.x} ${posP1.y} C ${posP1.x} ${posP1.y + dy1 * 0.5}, ${posC.x} ${posC.y - dy1 * 0.5}, ${posC.x} ${posC.y}`;
+                        path1.setAttribute('d', d1);
+                        path1.setAttribute('fill', 'none');
+                        path1.setAttribute('stroke', '#64748b');
+                        path1.setAttribute('stroke-width', '2.5');
+                        path1.setAttribute('stroke-dasharray', node.isAlive ? 'none' : '3,3');
+                        path1.setAttribute('class', `ancestry-link parent-${posP1.node.id} child-${node.id}`);
+                        svg.appendChild(path1);
+
+                        // Curve from Parent 2 to Child
+                        const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        const dy2 = posC.y - posP2.y;
+                        const d2 = `M ${posP2.x} ${posP2.y} C ${posP2.x} ${posP2.y + dy2 * 0.5}, ${posC.x} ${posC.y - dy2 * 0.5}, ${posC.x} ${posC.y}`;
+                        path2.setAttribute('d', d2);
+                        path2.setAttribute('fill', 'none');
+                        path2.setAttribute('stroke', '#64748b');
+                        path2.setAttribute('stroke-width', '2.5');
+                        path2.setAttribute('stroke-dasharray', node.isAlive ? 'none' : '3,3');
+                        path2.setAttribute('class', `ancestry-link parent-${posP2.node.id} child-${node.id}`);
+                        svg.appendChild(path2);
+                    }
+                }
+            });
+
+            // 2. Draw nodes
+            Object.values(positions).forEach(pos => {
+                const { x, y, node } = pos;
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('id', `node-g-${node.id}`);
+                g.style.cursor = 'pointer';
+                g.style.transition = 'opacity 0.2s ease';
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', nodeRadius);
+                circle.setAttribute('fill', '#' + node.colorHex.toString(16).padStart(6, '0'));
+                circle.setAttribute('stroke', '#3a2010');
+                circle.setAttribute('stroke-width', '2');
+                circle.setAttribute('filter', 'url(#clay-shadow)');
+                if (!node.isAlive) {
+                    circle.setAttribute('opacity', '0.35');
+                    circle.setAttribute('stroke-dasharray', '2,2');
+                }
+                g.appendChild(circle);
+
+                if (node.generation === 0) {
+                    const descendants = new Set();
+                    const collect = (id) => {
+                        ancestryHistory.forEach(n => {
+                            if (n.parents && n.parents.includes(id)) {
+                                if (!descendants.has(n.id)) {
+                                    descendants.add(n.id);
+                                    collect(n.id);
+                                }
+                            }
+                        });
+                    };
+                    collect(node.id);
+                    const descendantsCount = descendants.size;
+
+                    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    txt.setAttribute('x', x);
+                    txt.setAttribute('y', y - 18); // Positioned slightly above the circle
+                    txt.setAttribute('text-anchor', 'middle');
+                    txt.setAttribute('font-size', '15px');
+                    txt.setAttribute('font-weight', '900');
+                    txt.setAttribute('fill', '#0f172a');
+                    txt.textContent = descendantsCount;
+                    g.appendChild(txt);
+                }
+
+                if (!node.isAlive) {
+                    const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line1.setAttribute('x1', x - 6);
+                    line1.setAttribute('y1', y - 6);
+                    line1.setAttribute('x2', x + 6);
+                    line1.setAttribute('y2', y + 6);
+                    line1.setAttribute('stroke', '#ef4444');
+                    line1.setAttribute('stroke-width', '2');
+                    g.appendChild(line1);
+
+                    const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line2.setAttribute('x1', x + 6);
+                    line2.setAttribute('y1', y - 6);
+                    line2.setAttribute('x2', x - 6);
+                    line2.setAttribute('y2', y + 6);
+                    line2.setAttribute('stroke', '#ef4444');
+                    line2.setAttribute('stroke-width', '2');
+                    g.appendChild(line2);
+                }
+
+                let behaviorLabel = '';
+                if (node.species === 'yellow') behaviorLabel = 'Aggressive (Always Hard)';
+                else if (node.species === 'blue') behaviorLabel = 'Cooperative (Always Soft)';
+                else if (node.species === 'red') behaviorLabel = 'Reciprocal (Tit-for-Tat)';
+                else if (node.species === 'green') behaviorLabel = 'Unpredictable (Random)';
+                else if (node.weights) {
+                    behaviorLabel = getProceduralHybridLabel(node.weights);
+                } else {
+                    behaviorLabel = 'Hybrid';
+                }
+
+                // Interactive lineage highlighting on mouse hover
+                g.addEventListener('mouseenter', (event) => {
+                    // Populate and show custom premium HTML tooltip
+                    const tooltip = document.getElementById('ancestry-tooltip');
+                    const statusClass = node.isAlive ? 'alive' : 'dead';
+                    const statusText = node.isAlive ? 'Alive' : 'Dead';
+                    const statusDot = node.isAlive ? '🟢' : '🔴';
+                    
+                    // Render premium genetic mix visual representation
+                    let geneticsHTML = '';
+                    let hard = 0, soft = 0, tft = 0, random = 0;
+                    if (node.weights) {
+                        hard = node.weights.hard || 0;
+                        soft = node.weights.soft || 0;
+                        tft = node.weights.tft || 0;
+                        random = node.weights.random || 0;
+                    } else {
+                        if (node.species === 'yellow') hard = 1.0;
+                        else if (node.species === 'blue') soft = 1.0;
+                        else if (node.species === 'red') tft = 1.0;
+                        else if (node.species === 'green') random = 1.0;
+                    }
+                    
+                    if (hard > 0 || soft > 0 || tft > 0 || random > 0) {
+                        geneticsHTML = `
+                            <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
+                                <div style="font-weight: 600; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Genetic Mix</div>
+                                <div style="height: 6px; display: flex; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.1); margin-bottom: 8px;">
+                                    ${hard > 0 ? `<div style="width: ${hard * 100}%; background: #fdcc0d;"></div>` : ''}
+                                    ${soft > 0 ? `<div style="width: ${soft * 100}%; background: #2774d8;"></div>` : ''}
+                                    ${tft > 0 ? `<div style="width: ${tft * 100}%; background: #e33e3e;"></div>` : ''}
+                                    ${random > 0 ? `<div style="width: ${random * 100}%; background: #10b981;"></div>` : ''}
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 0.72rem; color: #cbd5e1;">
+                                    ${hard > 0.01 ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #fdcc0d; display: inline-block;"></span> Aggr: ${Math.round(hard * 100)}%</div>` : ''}
+                                    ${soft > 0.01 ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #2774d8; display: inline-block;"></span> Coop: ${Math.round(soft * 100)}%</div>` : ''}
+                                    ${tft > 0.01 ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #e33e3e; display: inline-block;"></span> Recip: ${Math.round(tft * 100)}%</div>` : ''}
+                                    ${random > 0.01 ? `<div style="display: flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Rand: ${Math.round(random * 100)}%</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    let extraHTML = '';
+                    if (node.generation === 0) {
+                        const descendants = new Set();
+                        const collect = (id) => {
+                            ancestryHistory.forEach(n => {
+                                if (n.parents && n.parents.includes(id)) {
+                                    if (!descendants.has(n.id)) {
+                                        descendants.add(n.id);
+                                        collect(n.id);
+                                    }
+                                }
+                            });
+                        };
+                        collect(node.id);
+                        const descendantsCount = descendants.size;
+
+                        extraHTML = `
+                            <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+                                <div style="font-weight: 600; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px;">Founder Stats</div>
+                                <div style="font-size: 0.76rem; color: #f8fafc; margin-top: 4px;">Descendants Bred: <strong>${descendantsCount}</strong></div>
+                            </div>
+                        `;
+                    }
+
+                    // Highlight matching egg in the 3D scene with scale and real bloom glow
+                    const matchingEgg = eggs.find(e => e.id === node.id);
+                    let energyHTML = '';
+                    if (matchingEgg && !matchingEgg.isCracked) {
+                        matchingEgg.isHighlighted = true;
+
+                        // Determine emissive color tuned so (emissive * intensity) luminance > 1.0
+                        // in HDR space, triggering UnrealBloom selectively on egg surface only.
+                        // Background #e6e6e6 has linear luminance ~0.79 — stays below threshold 1.0.
+                        const hsl = {};
+                        new THREE.Color(matchingEgg.colorHex).getHSL(hsl);
+                        const emissiveCol = new THREE.Color();
+                        // Colors with low green (which drives luminance) need boosting so they exceed
+                        // threshold=1.0 at intensity=4.0: luminance = R*0.2126 + G*0.7152 + B*0.0722
+                        if (hsl.h > 0.06 && hsl.h < 0.22) {
+                            emissiveCol.setRGB(1.0, 0.9, 0.0);   // Yellow: lum@3x = 2.68 ✓
+                        } else if (hsl.h > 0.45 && hsl.h < 0.72) {
+                            emissiveCol.setRGB(0.2, 0.4, 1.0);   // Blue: lum@4x = 1.61 ✓
+                        } else if (hsl.h > 0.22 && hsl.h < 0.45) {
+                            emissiveCol.setRGB(0.05, 1.0, 0.05); // Green: lum@3x = 2.18 ✓
+                        } else {
+                            emissiveCol.setRGB(1.0, 0.15, 0.1);  // Red: lum@4x = 1.11 ✓
+                        }
+                        matchingEgg._emissiveCol = emissiveCol;
+
+                        // Apply emissive to egg shells — threshold=1.0 stays, intensity pushes past it
+                        const uData = matchingEgg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.emissive.copy(emissiveCol);
+                                shell.material.emissiveIntensity = 3.5;
+                            }
+                        });
+                        // NOTE: bloomPass.threshold stays at 1.0 — only egg HDR pixels bloom,
+                        // background (#e6e6e6 ≈ 0.79 luminance) never crosses the threshold.
+                        
+                        energyHTML = `
+                            <div style="margin-top: 8px; font-size: 0.76rem; color: #f8fafc;">
+                                ⚡ Energy Level: <strong style="color: #f59e0b;">${Math.round(matchingEgg.energy)}</strong>
+                            </div>
+                        `;
+                    } else {
+                        energyHTML = `
+                            <div style="margin-top: 8px; font-size: 0.76rem; color: #94a3b8; opacity: 0.8;">
+                                💀 Deceased
+                            </div>
+                        `;
+                    }
+
+                    tooltip.innerHTML = `
+                        <div class="tooltip-header">
+                            <span style="font-weight: 700; color: #ffffff;">Gen ${node.generation} ${node.generation === 0 ? 'Founder' : 'Creature'}</span>
+                            <span class="tooltip-status ${statusClass}">${statusDot} ${statusText}</span>
+                        </div>
+                        <div style="font-weight: 600; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px;">Behavior Class:</div>
+                        <div style="color: #f8fafc; font-size: 0.8rem; font-weight: 600;">${behaviorLabel}</div>
+                        ${energyHTML}
+                        ${geneticsHTML}
+                        ${extraHTML}
+                    `;
+                    tooltip.style.display = 'block';
+                    tooltip.style.opacity = '1';
+
+                    const relatedNodeIds = new Set();
+                    const relatedLinks = new Set();
+
+                    function findAncestors(nodeId) {
+                        relatedNodeIds.add(nodeId);
+                        const n = ancestryHistory.find(item => item.id === nodeId);
+                        if (n && n.parents) {
+                            n.parents.forEach(pId => {
+                                relatedLinks.add(`.parent-${pId}.child-${nodeId}`);
+                                findAncestors(pId);
+                            });
+                        }
+                    }
+
+                    function findDescendants(nodeId) {
+                        relatedNodeIds.add(nodeId);
+                        ancestryHistory.forEach(item => {
+                            if (item.parents && item.parents.includes(nodeId)) {
+                                relatedLinks.add(`.parent-${nodeId}.child-${item.id}`);
+                                findDescendants(item.id);
+                            }
+                        });
+                    }
+
+                    findAncestors(node.id);
+                    findDescendants(node.id);
+
+                    // Dim all elements
+                    document.querySelectorAll('.ancestry-link').forEach(el => el.style.opacity = '0.08');
+                    document.querySelectorAll('#ancestry-svg g').forEach(el => el.style.opacity = '0.15');
+
+                    // Restore related elements to full opacity and highlight
+                    relatedNodeIds.forEach(nId => {
+                        const el = document.getElementById(`node-g-${nId}`);
+                        if (el) {
+                            el.style.opacity = '1';
+                            const circ = el.querySelector('circle');
+                            if (circ) {
+                                circ.setAttribute('stroke', '#d86a27');
+                                circ.setAttribute('stroke-width', '3');
+                            }
+                        }
+                    });
+
+                    relatedLinks.forEach(selector => {
+                        document.querySelectorAll(selector).forEach(el => {
+                            el.style.opacity = '1';
+                            el.style.stroke = '#8e9aaf';
+                            el.style.strokeWidth = '3px';
+                        });
+                    });
+                });
+
+                g.addEventListener('mousemove', (event) => {
+                    const tooltip = document.getElementById('ancestry-tooltip');
+                    tooltip.style.position = 'fixed';
+                    
+                    const tooltipWidth = tooltip.offsetWidth || 290;
+                    const tooltipHeight = tooltip.offsetHeight || 180;
+                    
+                    let left = event.clientX + 16;
+                    let top = event.clientY + 12;
+                    
+                    if (left + tooltipWidth > window.innerWidth) {
+                        left = event.clientX - tooltipWidth - 16;
+                    }
+                    if (top + tooltipHeight > window.innerHeight) {
+                        top = event.clientY - tooltipHeight - 12;
+                    }
+                    if (left < 0) left = 8;
+                    if (top < 0) top = 8;
+                    
+                    tooltip.style.left = left + 'px';
+                    tooltip.style.top = top + 'px';
+                });
+
+                g.addEventListener('mouseleave', () => {
+                    // Hide custom HTML tooltip
+                    const tooltip = document.getElementById('ancestry-tooltip');
+                    // Reset highlighted matching egg in the 3D scene
+                    const matchingEgg = eggs.find(e => e.id === node.id);
+                    if (matchingEgg && !matchingEgg.isCracked) {
+                        matchingEgg.isHighlighted = false;
+                        matchingEgg._emissiveCol = null;
+
+                        // Restore egg shell materials
+                        const uData = matchingEgg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.emissive.setHex(0x000000);
+                                shell.material.emissiveIntensity = 0.0;
+                            }
+                        });
+                        // bloomPass.threshold stays at 1.0 — no reset needed
+                    }
+
+                    tooltip.style.display = 'none';
+                    tooltip.style.opacity = '0';
+
+                    // Reset all opacities and stroke weights
+                    document.querySelectorAll('.ancestry-link').forEach(el => {
+                        el.style.opacity = '1';
+                        el.style.stroke = '#64748b';
+                        el.style.strokeWidth = '2.5px';
+                    });
+                    document.querySelectorAll('#ancestry-svg g').forEach(el => {
+                        el.style.opacity = '1';
+                        const circ = el.querySelector('circle');
+                        if (circ) {
+                            circ.setAttribute('stroke', '#3a2010');
+                            circ.setAttribute('stroke-width', '2');
+                        }
+                    });
+                });
+
+                svg.appendChild(g);
+            });
+        }
+
+        function getProceduralHybridLabel(weights) {
+            const sorted = Object.entries(weights)
+                .filter(([_, w]) => w > 0.01)
+                .sort((a, b) => b[1] - a[1]);
+            
+            if (sorted.length === 0) return 'Neutral Hybrid';
+            
+            const traitNames = { hard: 'Aggressive', soft: 'Cooperative', tft: 'Reciprocal', random: 'Unpredictable' };
+            
+            if (sorted.length === 1 || sorted[0][1] >= 0.99) {
+                const trait = sorted[0][0];
+                return `Dominantly ${traitNames[trait]} Hybrid`;
+            }
+            
+            // Build a full procedural name listing the contribution of each represented strategy
+            const parts = sorted.map(([trait, w]) => `${traitNames[trait]} ${Math.round(w * 100)}%`);
+            const labelName = parts.join(' / ');
+            
+            // Compute a dynamic behavioral attribute based on the main two traits
+            const t1 = sorted[0][0];
+            const t2 = sorted[1][0];
+            const w1 = sorted[0][1];
+            const w2 = sorted[1][1];
+            
+            let attribute = 'Adaptive';
+            const pair = [t1, t2].sort().join('-');
+            if (pair === 'hard-soft') attribute = w1 > w2 ? 'Gradual' : 'Compromising';
+            else if (pair === 'hard-tft') attribute = 'Vengeful';
+            else if (pair === 'hard-random') attribute = 'Volatile';
+            else if (pair === 'soft-tft') attribute = 'Trusting';
+            else if (pair === 'random-soft') attribute = 'Whimsical';
+            else if (pair === 'random-tft') attribute = 'Opportunistic';
+            
+            return `${labelName} (${attribute})`;
+        }
+
+
+
+        updateSlidersFromConfig();
+
+        // Initialize population at startup
+        initPopulation();
+        
+        // Render tree initially since panel is open by default
+        setTimeout(() => {
+            drawAncestryTree();
+        }, 100);
+
+        // ── MAIN APP TICK LOOP ─────────────────────────────────────────────
+        const clock = new THREE.Clock();
+
+        function updateSimulation(dt) {
+            // Update active encounters (ceremony) in simulation time
+            activeEncounters.forEach(enc => {
+                enc.progress += dt; // progress in simulation seconds
+                const size = faceConfig.eggSize || baseScale;
+                const CEREMONY_DURATION = 1.1; // 1.1 simulation seconds
+                
+                const t = Math.min(1.0, enc.progress / CEREMONY_DURATION);
+                const eMs = t * 1100; // equivalent milliseconds (for phase checks)
+
+                let t_pos = 0;
+                let yOffset = 0;
+                let tiltX = 0;
+                let squashY = 0;
+                let vibOffsetA = 0;
+                let vibOffsetB = 0;
+
+                if (eMs < 250) {
+                    const phaseT = eMs / 250;
+                    t_pos = 0;
+                    yOffset = 0;
+                    tiltX = phaseT * 0.35;
+                    squashY = -phaseT * 0.15;
+                } else if (eMs < 450) {
+                    const phaseT = (eMs - 250) / 200;
+                    t_pos = phaseT;
+                    yOffset = Math.sin(phaseT * Math.PI) * 0.45;
+                    tiltX = 0.35 - phaseT * 0.7;
+                    squashY = -0.15 + phaseT * 0.28;
+                } else if (eMs < 650) {
+                    const phaseT = (eMs - 450) / 200;
+                    t_pos = 1.0;
+                    yOffset = 0;
+                    tiltX = -0.35 + phaseT * 0.35;
+                    squashY = -0.28 * Math.sin(phaseT * Math.PI);
+                    vibOffsetA = Math.sin(eMs * 0.12) * 0.02 * (1.0 - phaseT);
+                    vibOffsetB = Math.cos(eMs * 0.12) * 0.02 * (1.0 - phaseT);
+                } else if (eMs < 900) {
+                    const phaseT = (eMs - 650) / 250;
+                    t_pos = 1.0 - phaseT;
+                    yOffset = Math.sin(phaseT * Math.PI) * 0.2;
+                    tiltX = phaseT * 0.15;
+                    squashY = (phaseT < 0.5) ? (phaseT * 2 * 0.08) : (0.08 - (phaseT - 0.5) * 2 * 0.15);
+                } else {
+                    const phaseT = (eMs - 900) / 200;
+                    t_pos = 0;
+                    yOffset = 0;
+                    tiltX = 0.15 * Math.cos(phaseT * Math.PI * 2.5) * (1.0 - phaseT);
+                    squashY = -0.1 * (1.0 - phaseT) * Math.sin(phaseT * Math.PI);
+                }
+
+                // Apply visual animation to meshes
+                enc.eggA.mesh.position.lerpVectors(enc.posA, enc.closePosA, t_pos);
+                enc.eggB.mesh.position.lerpVectors(enc.posB, enc.closePosB, t_pos);
+                
+                enc.eggA.mesh.position.y += yOffset;
+                enc.eggB.mesh.position.y += yOffset;
+
+                enc.eggA.mesh.position.x += vibOffsetA;
+                enc.eggA.mesh.position.z += vibOffsetB;
+                enc.eggB.mesh.position.x += vibOffsetB;
+                enc.eggB.mesh.position.z += vibOffsetA;
+
+                enc.eggA.mesh.rotation.set(tiltX, enc.angleToB, 0);
+                enc.eggB.mesh.rotation.set(tiltX, enc.angleToB + Math.PI, 0);
+
+                enc.eggA.mesh.scale.set(size * (1 - squashY * 0.5), size * (1 + squashY), size * (1 - squashY * 0.5));
+                enc.eggB.mesh.scale.set(size * (1 - squashY * 0.5), size * (1 + squashY), size * (1 - squashY * 0.5));
+
+                if (enc.progress >= CEREMONY_DURATION) {
+                    enc.eggA.mesh.position.copy(enc.posA);
+                    enc.eggB.mesh.position.copy(enc.posB);
+                    enc.eggA.mesh.scale.set(size, size, size);
+                    enc.eggB.mesh.scale.set(size, size, size);
+                    enc.eggA.mesh.rotation.set(0, enc.angleToB, 0);
+                    enc.eggB.mesh.rotation.set(0, enc.angleToB + Math.PI, 0);
+                    
+                    enc.eggA.inEncounter = false;
+                    enc.eggB.inEncounter = false;
+                    resolveGameTheory(enc.eggA, enc.eggB);
+                    enc.resolved = true;
+                }
+            });
+            activeEncounters = activeEncounters.filter(enc => !enc.resolved);
+
+            // Update active births
+            activeBirths.forEach(birth => {
+                birth.progress += dt * 0.83; // progress (from 0 to 1.0)
+                const t = Math.min(1.0, birth.progress);
+
+                if (birth.type === 'hybrid') {
+                    if (t <= 0.5) {
+                        const p1 = t / 0.5;
+                        birth.heartA.position.lerpVectors(birth.startPosA, birth.midPoint, p1);
+                        birth.heartB.position.lerpVectors(birth.startPosB, birth.midPoint, p1);
+                        birth.heartA.rotation.y += dt * 3.3;
+                        birth.heartB.rotation.y -= dt * 3.3;
+                    } else {
+                        if (birth.heartA.parent) scene.remove(birth.heartA);
+                        if (birth.heartB.parent) scene.remove(birth.heartB);
+
+                        const p2 = (t - 0.5) / 0.5;
+                        birth.mesh.visible = true;
+                        if (birth.egg.energyRing) birth.egg.energyRing.visible = true;
+                        
+                        const currentScale = Math.min(birth.targetSize, p2 * birth.targetSize);
+                        birth.mesh.scale.set(currentScale, currentScale, currentScale);
+
+                        const targetY = -1.1 + (1.1 * birth.targetSize);
+                        const finalPos = new THREE.Vector3(birth.childX, targetY, birth.childZ);
+                        birth.mesh.position.lerpVectors(birth.midPoint, finalPos, p2);
+
+                        if (t >= 1.0) {
+                            birth.mesh.position.copy(finalPos);
+                            birth.mesh.scale.set(birth.targetSize, birth.targetSize, birth.targetSize);
+                            birth.resolved = true;
+                        }
+                    }
+                }
+            });
+            activeBirths = activeBirths.filter(b => !b.resolved);
+
+            // Update active symbols
+            activeFloatingSymbols.forEach(sym => {
+                sym.age += dt * 1.5;
+                sym.mesh.position.y += dt * 0.53;
+                sym.mesh.rotation.y += dt * 2.3;
+                
+                if (sym.age > 1.2) {
+                    const s = Math.max(0, 0.65 * (2.0 - sym.age) / 0.8);
+                    sym.mesh.scale.set(s, s, s);
+                }
+
+                if (sym.age >= 2.0) {
+                    scene.remove(sym.mesh);
+                    sym.resolved = true;
+                }
+            });
+            activeFloatingSymbols = activeFloatingSymbols.filter(sym => !sym.resolved);
+
+            eggs.forEach(egg => {
+                if (egg.isCracked) return;
+
+                if (egg.inEncounter) {
+                    egg.energy -= dt * 0.4;
+                    if (egg.energy <= 0) {
+                        egg.isCracked = true;
+                        scene.remove(egg.mesh);
+                        killEggHistory(egg.id);
+                        updateScoreboard();
+                    }
+                    return;
+                }
+
+                // Decrement feedback pulse timers
+                if (egg.positivePulseTime > 0) {
+                    egg.positivePulseTime -= dt * 1.8;
+                    if (egg.positivePulseTime < 0) egg.positivePulseTime = 0;
+                }
+                if (egg.negativePulseTime > 0) {
+                    egg.negativePulseTime -= dt * 0.8;
+                    if (egg.negativePulseTime < 0) egg.negativePulseTime = 0;
+                }
+
+                if (egg.collisionCooldown > 0) {
+                    egg.collisionCooldown -= dt;
+                }
+
+
+
+                const size = faceConfig.eggSize || baseScale;
+
+                if (egg.moveProgress >= 1.0) {
+                    egg.aiWanderTimer -= dt;
+                    if (egg.aiWanderTimer <= 0) {
+                        egg.aiWanderTimer = 0.6 + Math.random() * 1.8;
+
+                        const otherEgg = eggs.find(e => e !== egg && !e.isCracked);
+                        let dirs = [
+                            { x: -1, z: 0 }, { x: 1, z: 0 },
+                            { x: 0, z: -1 }, { x: 0, z: 1 }
+                        ];
+                        
+                        if (otherEgg) {
+                            dirs.sort((a, b) => {
+                                const distA = Math.abs((egg.gridX + a.x) - otherEgg.gridX) + Math.abs((egg.gridZ + a.z) - otherEgg.gridZ);
+                                const distB = Math.abs((egg.gridX + b.x) - otherEgg.gridX) + Math.abs((egg.gridZ + b.z) - otherEgg.gridZ);
+                                return distA - distB;
+                            });
+                        } else {
+                            dirs.sort(() => Math.random() - 0.5);
+                        }
+
+                        let tX = egg.gridX;
+                        let tZ = egg.gridZ;
+                        let foundDir = false;
+
+                        for (const dir of dirs) {
+                            const testX = egg.gridX + dir.x;
+                            const testZ = egg.gridZ + dir.z;
+                            if (testX >= 0 && testX <= 14 && testZ >= 0 && testZ <= 14) {
+                                const occupied = eggs.some(e => !e.isCracked && e !== egg && (
+                                    (e.gridX === testX && e.gridZ === testZ) || 
+                                    (e.targetX === testX && e.targetZ === testZ)
+                                ));
+                                if (!occupied) {
+                                    tX = testX;
+                                    tZ = testZ;
+                                    foundDir = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (foundDir) {
+                            const occupied = eggs.some(e => !e.isCracked && e !== egg && (
+                                (e.gridX === tX && e.gridZ === tZ) || 
+                                (e.targetX === tX && e.targetZ === tZ)
+                            ));
+                            if (!occupied) {
+                                egg.startX = egg.gridX;
+                                egg.startZ = egg.gridZ;
+                                egg.targetX = tX;
+                                egg.targetZ = tZ;
+                                egg.moveProgress = 0.0;
+                                egg.mesh.rotation.y = Math.atan2(tX - egg.gridX, tZ - egg.gridZ);
+                            }
+                        }
+                    }
+                }
+
+                // Progress transition
+                if (egg.moveProgress < 1.0) {
+                    egg.moveProgress += dt * 2.5;
+                    if (egg.moveProgress >= 1.0) {
+                        egg.moveProgress = 1.0;
+                        egg.gridX = egg.targetX;
+                        egg.gridZ = egg.targetZ;
+                    }
+                }
+
+                // Energy drain
+                if (debugEnergyOverride !== null) {
+                    egg.energy = debugEnergyOverride;
+                } else {
+                    const isMoving = egg.moveProgress < 1.0;
+                    const drainRate = 0.50 + (isMoving ? 2.50 : 0.0);
+                    egg.energy -= dt * drainRate;
+                }
+                egg.energy = Math.min(200, egg.energy);
+                if (egg.energy <= 0) {
+                    egg.isCracked = true;
+                    // Spawn graveyard cross at exact position
+                    createGraveCross(egg.gridX, egg.gridZ, egg.mesh.position.x, egg.mesh.position.z);
+                    scene.remove(egg.mesh);
+                    killEggHistory(egg.id);
+                    updateScoreboard();
+                }
+            });
+
+            // 2. Grid-based Neighbor Collision Check
+            // Allow multiple simultaneous encounters — serialising on anyEncounterActive
+            // causes speed-dependent outcomes because it throttles meetings unevenly.
+            for (let i = 0; i < eggs.length; i++) {
+                const eggA = eggs[i];
+                if (eggA.isCracked || eggA.collisionCooldown > 0 || eggA.inEncounter) continue;
+                for (let j = i + 1; j < eggs.length; j++) {
+                    const eggB = eggs[j];
+                    if (eggB.isCracked || eggB.collisionCooldown > 0 || eggB.inEncounter) continue;
+                    
+                    if ((eggA.gridX === eggB.gridX && eggA.gridZ === eggB.gridZ) || (eggA.targetX === eggB.targetX && eggA.targetZ === eggB.targetZ)) {
+                        const freeTile = findFreeAdjacentGridTile(eggA.gridX, eggA.gridZ);
+                        if (freeTile) {
+                            eggB.gridX = eggB.targetX = eggB.startX = freeTile.x;
+                            eggB.gridZ = eggB.targetZ = eggB.startZ = freeTile.z;
+                            eggB.mesh.position.copy(get3DPosition(freeTile.x, freeTile.z, faceConfig.eggSize || baseScale));
+                        }
+                        continue;
+                    }
+
+                    if (eggA.moveProgress >= 1.0 && eggB.moveProgress >= 1.0) {
+                        const dx = Math.abs(eggA.gridX - eggB.gridX);
+                        const dz = Math.abs(eggA.gridZ - eggB.gridZ);
+                        if ((dx === 1 && dz === 0) || (dx === 0 && dz === 1)) {
+                            triggerEncounter(eggA, eggB);
+                            break; // eggA is now in encounter, skip remaining partners for it
+                        }
+                    }
+                }
+            }
+
+            eggs = eggs.filter(e => !e.isCracked);
+
+            // Decay graveyard crosses (debris) over simulation time
+            debris.forEach(d => {
+                if (d.gridX !== undefined && d.gridZ !== undefined) {
+                    const occupied = eggs.some(egg => !egg.isCracked && egg.gridX === d.gridX && egg.gridZ === d.gridZ);
+                    if (occupied) {
+                        scene.remove(d.group);
+                        d.toRemove = true;
+                        return;
+                    }
+                }
+                if (d.age !== undefined) {
+                    d.age += dt;
+                    const remaining = Math.max(0, 1.0 - (d.age / d.maxAge));
+                    if (d.material) {
+                        d.material.opacity = remaining;
+                    }
+                    if (d.age >= d.maxAge) {
+                        scene.remove(d.group);
+                        d.toRemove = true;
+                    }
+                }
+            });
+            debris = debris.filter(d => {
+                if (d.toRemove) {
+                    if (d.material) d.material.dispose();
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Sync camera controls with orbit controller updates
+            if (document.activeElement !== slideCameraX && document.activeElement !== slideCameraY && document.activeElement !== slideCameraZ) {
+                slideCameraX.value = camera.position.x;
+                valCameraX.textContent = camera.position.x.toFixed(1);
+                slideCameraY.value = camera.position.y;
+                valCameraY.textContent = camera.position.y.toFixed(1);
+                slideCameraZ.value = camera.position.z;
+                valCameraZ.textContent = camera.position.z.toFixed(1);
+            }
+            if (document.activeElement !== slideCameraFov) {
+                slideCameraFov.value = camera.fov;
+                valCameraFov.textContent = camera.fov + '°';
+            }
+
+            const realDt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            if (!isPaused) {
+                simAccumulator += realDt * simSpeed;
+                // Cap accumulator so we never run more than ~0.5s of sim per real frame
+                // Scale cap with simSpeed so no sim time is lost at high speeds
+                const maxAccum = Math.max(1.0, simSpeed * 0.5);
+                if (simAccumulator > maxAccum) simAccumulator = maxAccum;
+
+                const stepDt = 0.016; // Fixed 16ms simulation step
+                while (simAccumulator >= stepDt) {
+                    updateSimulation(stepDt);
+                    simAccumulator -= stepDt;
+                }
+
+                // Render updates & expensive Canvas redrawing (once per frame)
+                eggs.forEach(egg => {
+                    if (egg.isCracked) return;
+                    const size = faceConfig.eggSize || baseScale;
+
+                    if (egg.moveProgress < 1.0) {
+                        const startPos = get3DPosition(egg.startX, egg.startZ, size);
+                        const targetPos = get3DPosition(egg.targetX, egg.targetZ, size);
+                        const easedT = easeInOutCubic(egg.moveProgress);
+                        egg.mesh.position.lerpVectors(startPos, targetPos, easedT);
+                        egg.mesh.position.y += Math.sin(egg.moveProgress * Math.PI) * 0.22;
+                        egg.mesh.rotation.x = Math.sin(egg.moveProgress * Math.PI) * 0.18;
+                    } else {
+                        if (!egg.inEncounter) {
+                            egg.mesh.position.copy(get3DPosition(egg.gridX, egg.gridZ, size));
+                        }
+                        if (egg.collisionCooldown > 1.5) {
+                            const recoilFactor = (egg.collisionCooldown - 1.5) / 1.0;
+                            egg.mesh.rotation.x = -0.32 * recoilFactor;
+                        } else {
+                            egg.mesh.rotation.x = 0;
+                        }
+                    }
+
+                    const tOffset = (time + egg.bobOffset) * 1.5;
+                    let headRotY = Math.sin(tOffset * 0.4) * 0.08;
+                    if (egg.negativePulseTime > 0) {
+                        headRotY += Math.sin(egg.negativePulseTime * Math.PI * 6) * 0.22;
+                    }
+                    egg.mesh.userData.headFeatures.rotation.y = headRotY;
+                    egg.mesh.userData.headFeatures.rotation.z = Math.cos(tOffset * 0.6) * 0.02;
+
+                    let squash = Math.sin(tOffset * 1.2) * 0.015;
+                    if (egg.moveProgress < 1.0) {
+                        const p = egg.moveProgress;
+                        let jumpSquash = (p < 0.70) ? (Math.sin((p / 0.70) * Math.PI) * 0.18) : (-Math.sin(((p - 0.70) / 0.30) * Math.PI) * 0.15);
+                        squash += jumpSquash;
+                    }
+
+                    let pulseScale = 1.0;
+                    if (egg.positivePulseTime > 0) {
+                        pulseScale = 1.0 + Math.abs(Math.sin(egg.positivePulseTime * Math.PI * 3)) * 0.28;
+                        egg.mesh.rotation.y = egg.baseRotationY + (1.0 - egg.positivePulseTime) * Math.PI * 2;
+                    }
+                    const highlightScale = egg.isHighlighted ? 1.4 : 1.0;
+                    egg.mesh.scale.set(size * (1 - squash * 0.5) * pulseScale * highlightScale, size * (1 + squash) * pulseScale * highlightScale, size * (1 - squash * 0.5) * pulseScale * highlightScale);
+
+                    // Pulse emissiveIntensity on highlighted egg so bloom breathes, bob position up, and scale ground ring
+                    if (egg.isHighlighted && egg._emissiveCol) {
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        const pulsedIntensity = 3.8 + Math.sin(time * 5.0) * 0.8;
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.color.copy(egg._emissiveCol); // Shell becomes the emissive color
+                                shell.material.emissive.copy(egg._emissiveCol);
+                                shell.material.emissiveIntensity = pulsedIntensity;
+                            }
+                        });
+                        
+                        // Bounce/float offset when highlighted (non-accumulative)
+                        egg.mesh.position.y = (egg.moveProgress < 1.0 ? egg.mesh.position.y : get3DPosition(egg.gridX, egg.gridZ, size).y) + 0.45 + Math.sin(time * 5.0) * 0.12;
+
+                        // Pulse ground ring
+                        if (egg.energyRing) {
+                            egg.energyRing.visible = true;
+                            const ringScale = size * (1.35 + Math.sin(time * 8.0) * 0.15);
+                            egg.energyRing.scale.set(ringScale, ringScale, ringScale);
+                        }
+                    } else {
+                        // Restore original shell color and emissive properties when not highlighted
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                if (shell.material.color.getHex() !== egg.colorHex) {
+                                    shell.material.color.setHex(egg.colorHex);
+                                }
+                                if (shell.material.emissive.getHex() !== 0x000000) {
+                                    shell.material.emissive.setHex(0x000000);
+                                    shell.material.emissiveIntensity = 0.0;
+                                }
+                            }
+                        });
+                        // Restore ground ring visibility to false if it was hidden before highlight
+                        if (egg.energyRing && egg.energy < 70) {
+                            egg.energyRing.visible = false;
+                        }
+                    }
+
+
+                    // Canvas text redraw (once per frame)
+                    const uData = egg.mesh.userData;
+                    if (uData.backCtx && uData.backTex) {
+                        const energyVal = Math.max(0, Math.round(egg.energy));
+                        uData.backCtx.clearRect(0, 0, 128, 128);
+                        
+                        uData.backCtx.beginPath();
+                        uData.backCtx.moveTo(64, 12);
+                        uData.backCtx.lineTo(74, 30);
+                        uData.backCtx.lineTo(66, 30);
+                        uData.backCtx.lineTo(70, 48);
+                        uData.backCtx.lineTo(54, 32);
+                        uData.backCtx.lineTo(62, 32);
+                        uData.backCtx.closePath();
+                        uData.backCtx.fillStyle = '#ffeb3b';
+                        uData.backCtx.strokeStyle = '#3a2010';
+                        uData.backCtx.lineWidth = 6;
+                        uData.backCtx.lineJoin = 'round';
+                        uData.backCtx.stroke();
+                        uData.backCtx.fill();
+                        
+                        uData.backCtx.strokeStyle = '#3a2010';
+                        uData.backCtx.lineWidth = 10;
+                        uData.backCtx.lineJoin = 'round';
+                        uData.backCtx.fillStyle = '#ffffff';
+                        uData.backCtx.font = 'bold 46px Outfit, sans-serif';
+                        uData.backCtx.textAlign = 'center';
+                        uData.backCtx.textBaseline = 'middle';
+                        uData.backCtx.strokeText(energyVal, 64, 88);
+                        uData.backCtx.fillText(energyVal, 64, 88);
+                        
+                        uData.backTex.needsUpdate = true;
+                    }
+                });
+
+                // Dynamically drop bloom threshold if there is any highlighted egg to create a premium radiant glow effect
+                const anyHighlighted = eggs.some(egg => egg.isHighlighted && !egg.isCracked);
+                if (anyHighlighted) {
+                    bloomPass.threshold = 0.92; // Prevents background and character skin blowout
+                    bloomPass.strength = 1.35; // Gentle premium halo
+                } else {
+                    bloomPass.threshold = 1.0;
+                    bloomPass.strength = 1.2;
+                }
+            }
+
+            composer.render();
+        }
+
+        // ── ENCOUNTER SYSTEM ───────────────────────────────────────────────────
+        // All encounters auto-resolve (God Mode only — no player decisions needed).
+
+        function triggerEncounter(eggA, eggB) {
+            eggA.inEncounter = true;
+            eggB.inEncounter = true;
+
+            const size = faceConfig.eggSize || baseScale;
+            
+            const posA = get3DPosition(eggA.gridX, eggA.gridZ, size);
+            const posB = get3DPosition(eggB.gridX, eggB.gridZ, size);
+            
+            const angleToB = Math.atan2(posB.x - posA.x, posB.z - posA.z);
+            const midPoint = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+            const closePosA = new THREE.Vector3().lerpVectors(posA, midPoint, 0.88);
+            const closePosB = new THREE.Vector3().lerpVectors(posB, midPoint, 0.88);
+
+            activeEncounters.push({
+                eggA: eggA,
+                eggB: eggB,
+                posA: posA,
+                posB: posB,
+                closePosA: closePosA,
+                closePosB: closePosB,
+                angleToB: angleToB,
+                progress: 0,
+                resolved: false
+            });
+        }
+
+        // Toggle Face Config panel
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                const panel = document.querySelector('.control-panel');
+                const isHidden = window.getComputedStyle(panel).display === 'none';
+                panel.style.display = isHidden ? 'flex' : 'none';
+            }
+        });
+
+        // Handle Resizing
+        window.addEventListener('resize', () => {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            composer.setSize(w, h);
+            drawAncestryTree();
+        });
+
+        // ── 3D RAYCAST CLICK INTERACTION ─────────────────────────────────────
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        container.addEventListener('click', (event) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            const meshesToIntersect = eggs.map(e => e.mesh);
+            const intersects = raycaster.intersectObjects(meshesToIntersect, true);
+
+            if (intersects.length > 0) {
+                let hitMesh = intersects[0].object;
+                let matchedEgg = null;
+                while (hitMesh && hitMesh !== scene) {
+                    matchedEgg = eggs.find(e => e.mesh === hitMesh);
+                    if (matchedEgg) break;
+                    hitMesh = hitMesh.parent;
+                }
+
+                if (matchedEgg) {
+                    // Open the side panel if closed
+                    ancestryPanel.classList.add('open');
+                    ancestryPanel.style.right = '20px';
+                    ancestryToggleBtn.style.display = 'none';
+                    drawAncestryTree();
+
+                    // Dispatch mouseenter on the SVG node group to trigger full highlight
+                    const targetNodeGroup = document.getElementById(`node-g-${matchedEgg.id}`);
+                    if (targetNodeGroup) {
+                        targetNodeGroup.dispatchEvent(new MouseEvent('mouseenter'));
+                        
+                        // Place tooltip near the click coordinates
+                        const tooltip = document.getElementById('ancestry-tooltip');
+                        tooltip.style.left = (event.clientX + 16) + 'px';
+                        tooltip.style.top = (event.clientY + 12) + 'px';
+                    }
+                }
+            } else {
+                // Click on empty space resets highlights and tooltip
+                const tooltip = document.getElementById('ancestry-tooltip');
+                tooltip.style.display = 'none';
+                tooltip.style.opacity = '0';
+                
+                eggs.forEach(egg => {
+                    if (egg.isHighlighted) {
+                        egg.isHighlighted = false;
+                        egg._emissiveCol = null;
+
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.emissive.setHex(0x000000);
+                                shell.material.emissiveIntensity = 0.0;
+                            }
+                        });
+                    }
+                });
+
+                // Restore bloom to idle state
+                // bloomPass.threshold stays at 1.0 — no reset needed
+                
+                document.querySelectorAll('.ancestry-link').forEach(el => {
+                    el.style.opacity = '1';
+                    el.style.stroke = '#64748b';
+                    el.style.strokeWidth = '2.5px';
+                });
+                document.querySelectorAll('#ancestry-svg g').forEach(el => {
+                    el.style.opacity = '1';
+                    const circ = el.querySelector('circle');
+                    if (circ) {
+                        circ.setAttribute('stroke', '#3a2010');
+                        circ.setAttribute('stroke-width', '2');
+                    }
+                });
+            }
+        });
+
+        // Strategy Row Hover Highlights
+        document.querySelectorAll('.strategy-row').forEach(row => {
+            const strategy = row.getAttribute('data-strategy');
+            row.addEventListener('mouseenter', () => {
+                // Dim the row container background for premium feedback
+                row.style.background = 'rgba(255, 255, 255, 0.15)';
+                
+                // Select theme border color for the SVG graph node highlights
+                let strokeColor = '#fdcc0d'; // Yellow
+                if (strategy === 'soft') strokeColor = '#2774d8'; // Blue
+                
+                // Dim all SVG links and nodes initially
+                document.querySelectorAll('.ancestry-link').forEach(el => el.style.opacity = '0.08');
+                document.querySelectorAll('#ancestry-svg g').forEach(el => el.style.opacity = '0.15');
+
+                // Evaluate nodes and highlight those matching the strategy
+                ancestryHistory.forEach(node => {
+                    const w = node.weights || {};
+                    const strategyVal = w[strategy] || (
+                        (node.species === 'yellow' && strategy === 'hard') ||
+                        (node.species === 'blue' && strategy === 'soft') ? 1.0 : 0.0
+                    );
+
+                    if (strategyVal > 0.05) {
+                        const el = document.getElementById(`node-g-${node.id}`);
+                        if (el) {
+                            el.style.opacity = '1';
+                            const circ = el.querySelector('circle');
+                            if (circ) {
+                                circ.setAttribute('stroke', strokeColor);
+                                circ.setAttribute('stroke-width', '3');
+                            }
+                        }
+                    }
+                });
+                
+                // Highlight eggs in the 3D scene matching this strategy
+                eggs.forEach(egg => {
+                    if (egg.isCracked) return;
+                    const w = egg.weights || {};
+                    // Map strategy weights
+                    const strategyVal = w[strategy] || (egg.strategy === strategy ? 1.0 : 0.0);
+                    
+                    if (strategyVal > 0.05) {
+                        egg.isHighlighted = true;
+                        
+                        // Select emissive highlight color respective to the strategy
+                        const emissiveCol = new THREE.Color();
+                        if (strategy === 'hard') emissiveCol.setRGB(1.0, 0.9, 0.0);       // Yellow
+                        else emissiveCol.setRGB(0.2, 0.4, 1.0);  // Blue
+                        
+                        egg._emissiveCol = emissiveCol;
+                        
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.emissive.copy(emissiveCol);
+                                shell.material.emissiveIntensity = 3.5;
+                            }
+                        });
+                    }
+                });
+            });
+
+            row.addEventListener('mouseleave', () => {
+                row.style.background = 'transparent';
+                
+                // Restore SVG graph links and nodes to full visibility
+                document.querySelectorAll('.ancestry-link').forEach(el => {
+                    el.style.opacity = '1';
+                    el.style.stroke = '#64748b';
+                    el.style.strokeWidth = '2.5px';
+                });
+                document.querySelectorAll('#ancestry-svg g').forEach(el => {
+                    el.style.opacity = '1';
+                    const circ = el.querySelector('circle');
+                    if (circ) {
+                        circ.setAttribute('stroke', '#3a2010');
+                        circ.setAttribute('stroke-width', '2');
+                    }
+                });
+
+                // Reset all highlighted eggs
+                eggs.forEach(egg => {
+                    if (egg.isHighlighted) {
+                        egg.isHighlighted = false;
+                        egg._emissiveCol = null;
+                        
+                        const uData = egg.mesh.userData;
+                        const shells = [uData.topShell, uData.bottomShell];
+                        shells.forEach(shell => {
+                            if (shell && shell.material) {
+                                shell.material.emissive.setHex(0x000000);
+                                shell.material.emissiveIntensity = 0.0;
+                            }
+                        });
+                    }
+                });
+            });
+        });
+
+        // Close rules tooltip on first click, touch or hover
+        const rulesTooltip = document.getElementById('rules-tooltip');
+        const infoTrigger = document.getElementById('rules-info-trigger');
+        if (rulesTooltip) {
+            const dismissTooltip = () => {
+                rulesTooltip.classList.remove('show-initially');
+                rulesTooltip.style.visibility = 'hidden';
+                rulesTooltip.style.opacity = '0';
+                document.removeEventListener('mousedown', dismissTooltip);
+                document.removeEventListener('touchstart', dismissTooltip);
+                if (infoTrigger) infoTrigger.removeEventListener('mouseenter', dismissTooltip);
+            };
+            document.addEventListener('mousedown', dismissTooltip);
+            document.addEventListener('touchstart', dismissTooltip);
+            if (infoTrigger) {
+                infoTrigger.addEventListener('mouseenter', dismissTooltip);
+                infoTrigger.addEventListener('mouseenter', () => {
+                    rulesTooltip.style.visibility = 'visible';
+                    rulesTooltip.style.opacity = '1';
+                });
+                infoTrigger.addEventListener('mouseleave', () => {
+                    if (!rulesTooltip.classList.contains('show-initially')) {
+                        rulesTooltip.style.visibility = 'hidden';
+                        rulesTooltip.style.opacity = '0';
+                    }
+                });
+            }
+        }
+
+        animate();
+    </script>
+</body>
+</html>
